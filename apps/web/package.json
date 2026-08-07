@@ -1,0 +1,5 @@
+{
+  "name": "@tc39-atlas/web",
+  "private": true,
+  "type": "module"
+}

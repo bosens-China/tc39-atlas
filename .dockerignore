@@ -1,0 +1,7 @@
+.agents
+.git
+**/dist
+**/node_modules
+docs
+.env*
+*.log

@@ -1,0 +1,54 @@
+# TC39 Atlas
+
+需要 Node.js 22 和 pnpm 11。
+
+## Docker 启动
+
+```powershell
+docker compose up -d --build
+```
+
+- PostgreSQL：`127.0.0.1:55439`
+- 后端：`http://127.0.0.1:43127`
+- MCP Streamable HTTP：`http://127.0.0.1:43127/mcp`
+- REST API：`http://127.0.0.1:43127/api`
+- OpenAPI：`http://127.0.0.1:43127/api/openapi.json`
+- Swagger UI：`http://127.0.0.1:43127/api/docs`
+- 健康检查：`http://127.0.0.1:43127/health`
+
+## 本地开发
+
+```powershell
+$env:DATABASE_URL='postgres://tc39_atlas:tc39_atlas@127.0.0.1:55439/tc39_atlas'
+pnpm db:up
+pnpm db:migrate
+pnpm dev:mcp
+```
+
+供前端直接对接的只读接口：
+
+- `GET /api/proposals`：按阶段、版本、状态和关键词检索
+- `GET /api/proposals/{id}`：读取提案详情与 README
+- `GET /api/changes`：读取一天、一周或一个月内的变化
+- `GET /api/health`：API 健康检查
+
+查询参数、响应结构和校验规则以 OpenAPI 文档为准。请求日志由 Hono logger 输出，
+输入由 Zod 在数据库查询前校验。
+
+服务启动后会立即同步一次 TC39 数据，随后每 24 小时同步；本地调试可设置
+`SYNC_ON_START=false`。绑定到 `0.0.0.0` 或 `::` 时必须通过逗号分隔的
+`ALLOWED_HOSTS` 显式配置公开域名，可用 `ALLOWED_ORIGINS` 限制浏览器来源。
+
+提案元数据来自 `https://tc39.es/dataset/proposals.min.json`，README 来自各提案
+仓库。同步会校验官方 Schema 指纹和实际消费字段；上游契约变化或数据校验失败时，
+日志会输出 `tc39_dataset_schema_changed` 或
+`tc39_dataset_validation_failed`，本次同步不会写入数据库。
+
+## 质量检查
+
+```powershell
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+```

@@ -1,0 +1,39 @@
+{
+  "name": "tc39-atlas",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.15.1",
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "db:down": "docker compose down",
+    "db:migrate": "pnpm --filter @tc39-atlas/core db:migrate",
+    "db:up": "docker compose up -d postgres",
+    "dev:mcp": "pnpm --filter @tc39-atlas/core build && pnpm --filter @tc39-atlas/mcp dev",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint \"**/*.{js,mjs,cjs,ts,tsx}\" --max-warnings=0",
+    "prepare": "simple-git-hooks",
+    "sync": "pnpm --filter @tc39-atlas/core sync",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "lint-staged": {
+    "*.{cjs,css,html,js,json,jsonc,jsx,md,mdx,mjs,scss,ts,tsx,yaml,yml}": "prettier --write"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "pnpm exec lint-staged"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.8.0",
+    "globals": "^17.9.0",
+    "lint-staged": "^17.3.0",
+    "prettier": "^3.9.6",
+    "simple-git-hooks": "^2.13.1",
+    "typescript": "^6.0.0",
+    "typescript-eslint": "^8.66.0"
+  }
+}

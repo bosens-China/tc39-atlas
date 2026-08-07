@@ -1,0 +1,22 @@
+# TC39 Atlas 初始版本 Todo
+
+- [x] 建立 pnpm monorepo 基础结构与共享工程配置
+- [x] 实现提案模型、PostgreSQL 存储与每日同步
+  - [x] 建立 PostgreSQL Compose、Drizzle 模型与迁移
+  - [x] 接入 TC39 Dataset、Schema 契约哨兵并抓取仓库 README
+  - [x] 保存当前状态、README 哈希与产品变化事件
+  - [x] 使用完整 TC39 数据执行首次同步验收
+- [x] 实现 MCP 查询工具与资源
+  - [x] 实现 `search_proposals` 与 `get_proposals`
+  - [x] 实现阶段、版本与提案资源模板
+  - [x] 提供 Hono Streamable HTTP 和健康检查入口
+  - [x] 使用 MCP 客户端完成端到端验收
+- [x] 准备 Web 对接所需的后端接口
+  - [x] 提供提案列表、详情和周期变化 REST API
+  - [x] 接入 Hono 日志、Zod 校验、OpenAPI 与 Swagger UI
+- [x] 完成后端容器化与工程检查
+  - [x] 提供 Node.js 22 多阶段 Dockerfile 与完整 Compose
+  - [x] 在根目录配置 ESLint 并通过全仓检查
+- [ ] 实现 README 中文翻译与复用
+- [ ] 实现 Web 提案检索、详情与周期变化界面
+- [ ] 完成初始版本验收与文档收口

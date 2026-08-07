@@ -1,0 +1,36 @@
+services:
+  mcp:
+    build:
+      context: .
+      target: runtime
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ALLOWED_HOSTS: localhost,127.0.0.1
+      DATABASE_URL: postgres://tc39_atlas:tc39_atlas@postgres:5432/tc39_atlas
+      HOST: 0.0.0.0
+      PORT: 43127
+      SYNC_ON_START: 'true'
+    ports:
+      - '127.0.0.1:43127:43127'
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: tc39_atlas
+      POSTGRES_PASSWORD: tc39_atlas
+      POSTGRES_USER: tc39_atlas
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U tc39_atlas -d tc39_atlas']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    ports:
+      - '127.0.0.1:55439:5432'
+    volumes:
+      - tc39_atlas_pg_data:/var/lib/postgresql/data
+
+volumes:
+  tc39_atlas_pg_data:
