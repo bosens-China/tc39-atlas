@@ -1,5 +1,7 @@
 # TC39 Atlas
 
+面向中文用户与 AI Agent 的 TC39 提案索引服务，统一提供每日同步、REST API 和 MCP 查询能力。
+
 需要 Node.js 22 和 pnpm 11。
 
 ## Docker 启动
