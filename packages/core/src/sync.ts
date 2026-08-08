@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 
 import type { Database } from './database.js';
 import type { ProposalSnapshot, SyncedProposal } from './model.js';
@@ -9,6 +9,51 @@ function snapshot(proposal: SyncedProposal): ProposalSnapshot {
   return { id, title, stage, edition, status, repositoryUrl };
 }
 
+// 变化计算保持为纯函数，避免数据库写入掩盖状态判定错误。
+export function detectProposalChanges(
+  current: readonly SyncedProposal[],
+  incoming: readonly SyncedProposal[],
+): Array<typeof proposalChanges.$inferInsert> {
+  const byId = new Map(current.map((proposal) => [proposal.id, proposal]));
+  const changes: Array<typeof proposalChanges.$inferInsert> = [];
+
+  for (const proposal of incoming) {
+    const before = byId.get(proposal.id);
+    const after = snapshot(proposal);
+    if (!before) {
+      changes.push({
+        proposalId: proposal.id,
+        kind: 'added',
+        before: null,
+        after,
+        occurredAt: proposal.syncedAt,
+      });
+      continue;
+    }
+    const beforeSnapshot = snapshot(before);
+    if (before.stage !== proposal.stage) {
+      changes.push({
+        proposalId: proposal.id,
+        kind: 'stage_changed',
+        before: beforeSnapshot,
+        after,
+        occurredAt: proposal.syncedAt,
+      });
+    }
+    if (before.status !== proposal.status && proposal.status !== 'active') {
+      changes.push({
+        proposalId: proposal.id,
+        kind: proposal.status,
+        before: beforeSnapshot,
+        after,
+        occurredAt: proposal.syncedAt,
+      });
+    }
+  }
+
+  return changes;
+}
+
 // 同步在一个事务和 advisory lock 内完成，避免两个定时任务互相覆盖。
 export async function saveProposals(db: Database, incoming: SyncedProposal[]) {
   return db.transaction(async (tx) => {
@@ -16,53 +61,7 @@ export async function saveProposals(db: Database, incoming: SyncedProposal[]) {
       sql`select pg_advisory_xact_lock(hashtext('tc39-atlas-sync'))`,
     );
     const current = await tx.select().from(proposals);
-    const byId = new Map(current.map((proposal) => [proposal.id, proposal]));
-    const changes: Array<typeof proposalChanges.$inferInsert> = [];
-
-    for (const proposal of incoming) {
-      const before = byId.get(proposal.id);
-      const after = snapshot(proposal);
-      if (!before) {
-        changes.push({
-          proposalId: proposal.id,
-          kind: 'added',
-          before: null,
-          after,
-          occurredAt: proposal.syncedAt,
-        });
-        continue;
-      }
-      const beforeSnapshot: ProposalSnapshot = snapshot({
-        ...before,
-        readmeHash: before.readmeHash,
-      });
-      if (before.stage !== proposal.stage) {
-        changes.push({
-          proposalId: proposal.id,
-          kind: 'stage_changed',
-          before: beforeSnapshot,
-          after,
-          occurredAt: proposal.syncedAt,
-        });
-      }
-      if (before.status !== proposal.status) {
-        const kind =
-          proposal.status === 'finished' ||
-          proposal.status === 'inactive' ||
-          proposal.status === 'withdrawn'
-            ? proposal.status
-            : null;
-        if (kind) {
-          changes.push({
-            proposalId: proposal.id,
-            kind,
-            before: beforeSnapshot,
-            after,
-            occurredAt: proposal.syncedAt,
-          });
-        }
-      }
-    }
+    const changes = detectProposalChanges(current, incoming);
 
     if (incoming.length) {
       await tx
@@ -101,16 +100,4 @@ export async function getLatestSync(db: Database): Promise<Date | null> {
     .orderBy(sql`${proposals.syncedAt} desc`)
     .limit(1);
   return latest?.syncedAt ?? null;
-}
-
-export async function proposalExists(
-  db: Database,
-  id: string,
-): Promise<boolean> {
-  const [proposal] = await db
-    .select({ id: proposals.id })
-    .from(proposals)
-    .where(eq(proposals.id, id))
-    .limit(1);
-  return proposal !== undefined;
 }

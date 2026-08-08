@@ -167,13 +167,14 @@ export function parseDataset(value: unknown): ProposalMetadata[] {
   });
 }
 
-async function fetchText(url: string): Promise<string> {
+async function fetchText(url: string, notFound?: string): Promise<string> {
   return pRetry(
     async () => {
       const response = await fetch(url, {
         headers: { 'user-agent': 'tc39-atlas/0.1' },
         signal: AbortSignal.timeout(20_000),
       });
+      if (response.status === 404 && notFound !== undefined) return notFound;
       if (!response.ok) {
         const error = new Error(`${response.status} ${url}`);
         if (response.status < 500 && ![408, 429].includes(response.status)) {
@@ -191,18 +192,15 @@ async function fetchJson(url: string): Promise<unknown> {
   return JSON.parse(await fetchText(url)) as unknown;
 }
 
-async function fetchReadme(repositoryUrl: string): Promise<string> {
+export async function fetchReadme(repositoryUrl: string): Promise<string> {
   const url = new URL(repositoryUrl);
   if (url.hostname !== 'github.com') return '';
   const [owner, repository] = url.pathname.split('/').filter(Boolean);
   if (!owner || !repository) return '';
-  try {
-    return await fetchText(
-      `https://raw.githubusercontent.com/${owner}/${repository}/HEAD/README.md`,
-    );
-  } catch {
-    return '';
-  }
+  return fetchText(
+    `https://raw.githubusercontent.com/${owner}/${repository}/HEAD/README.md`,
+    '',
+  );
 }
 
 export async function fetchTc39Proposals(): Promise<SyncedProposal[]> {

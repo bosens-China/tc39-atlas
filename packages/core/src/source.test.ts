@@ -1,6 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { parseDataset, verifyOfficialSchema } from './source.js';
+import { fetchReadme, parseDataset, verifyOfficialSchema } from './source.js';
+
+afterEach(() => vi.unstubAllGlobals());
 
 describe('TC39 dataset source', () => {
   it('maps stages and distinguishes withdrawn proposals', () => {
@@ -50,5 +52,20 @@ describe('TC39 dataset source', () => {
     );
 
     error.mockRestore();
+  });
+
+  it('keeps missing README empty but surfaces other download failures', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    fetchMock.mockResolvedValueOnce(new Response('', { status: 404 }));
+    await expect(
+      fetchReadme('https://github.com/tc39/proposal-missing'),
+    ).resolves.toBe('');
+
+    fetchMock.mockResolvedValueOnce(new Response('', { status: 403 }));
+    await expect(
+      fetchReadme('https://github.com/tc39/proposal-private'),
+    ).rejects.toThrow('403');
   });
 });
