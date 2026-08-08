@@ -1,8 +1,8 @@
 # 文档索引
 
-## 进行中的需求
+## 现行产品决策
 
-- [TC39 Atlas 初始版本](./work/initial-release/PRD.md)
+- [TC39 Atlas 产品 PRD](./PRD.md)
 
 ## 其他文档
 
