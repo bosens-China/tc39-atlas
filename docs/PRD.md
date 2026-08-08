@@ -45,7 +45,7 @@ TC39 Atlas 面向关注 ECMAScript 提案的中文用户与 AI Agent。产品每
 
 ## 本地 MCP
 
-- MCP 作为 `@tc39-atlas/mcp` 公共 npm 包分发，通过 `npx` 启动本地 stdio 服务。
+- MCP 将作为 `@tc39-atlas/mcp` 公共 npm 包分发，通过 `npx` 启动本地 stdio 服务；发布前可从仓库本地构建和调试。
 - MCP 只提供只读能力。`search_proposals` 支持阶段、ECMAScript 版本、状态和多个关键词；`get_proposals` 根据稳定 ID 返回摘要或 README 正文。
 - 阶段、版本和提案资源分别通过 `tc39://stages/{stage}`、`tc39://editions/{edition}` 和 `tc39://proposals/{id}` 提供轻量浏览入口。
 - 首次运行且没有缓存时，MCP 等待完整数据集下载。已有缓存时立即提供服务，并在后台静默检查清单版本。
@@ -66,7 +66,7 @@ TC39 Atlas 面向关注 ECMAScript 提案的中文用户与 AI Agent。产品每
 - MCP 计划只通过 npm 分发，不提供二进制、MCPB、Docker 镜像或远程 MCP 服务。
 - npm 自动发布当前禁用；未来启用时使用 GitHub Actions OIDC Trusted Publishing，不在仓库保存长期写 token。
 - TypeScript 禁止显式 `any`。数据模型、生成、查询、翻译、缓存和 MCP 契约使用 Vitest 覆盖。
-- 用户运行方式、环境变量、Pages 设置和 npm 首次发布步骤以[仓库 README](../README.md)为准。
+- 用户运行方式、环境变量和 Pages 设置以[仓库 README](../README.md)为准；npm 首次发布见[后续计划](./plans/npm-publishing/PRD.md)。
 
 ## 非目标
 

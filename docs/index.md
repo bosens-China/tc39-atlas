@@ -8,10 +8,6 @@
 
 - [npm 自动发布](./plans/npm-publishing/PRD.md)
 
-## 进行中的需求
-
-- [提案元数据双语化](./work/proposal-metadata-i18n/PRD.md)
-
 ## 其他文档
 
 - [使用、开发与发布](../README.md)
