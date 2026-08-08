@@ -1,30 +1,54 @@
 {
   "name": "@tc39-atlas/mcp",
-  "private": true,
+  "version": "1.0.0",
+  "description": "Local read-only MCP server for the TC39 Atlas proposal dataset",
   "type": "module",
-  "exports": {
-    "./api": "./src/api.ts"
+  "bin": {
+    "tc39-atlas-mcp": "dist/index.mjs"
+  },
+  "main": "./dist/index.mjs",
+  "exports": "./dist/index.mjs",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.14"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bosens-China/tc39-atlas.git",
+    "directory": "apps/mcp"
+  },
+  "homepage": "https://bosens-china.github.io/tc39-atlas/",
+  "bugs": "https://github.com/bosens-China/tc39-atlas/issues",
+  "keywords": [
+    "mcp",
+    "tc39",
+    "ecmascript",
+    "javascript"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "scripts": {
+    "build": "tsdown",
     "dev": "tsx watch src/index.ts",
-    "start": "tsx src/index.ts",
+    "start": "node dist/index.mjs",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@hono/node-server": "^2.1.0",
-    "@hono/swagger-ui": "^0.6.1",
-    "@hono/zod-openapi": "^1.5.1",
-    "@modelcontextprotocol/hono": "^2.0.0",
     "@modelcontextprotocol/server": "^2.0.0",
-    "@tc39-atlas/core": "workspace:*",
-    "hono": "^4.13.1",
-    "tsx": "^4.23.9",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@modelcontextprotocol/client": "^2.0.0",
+    "@tc39-atlas/core": "workspace:*",
     "@types/node": "^26.1.2",
+    "tsdown": "^0.22.14",
+    "tsx": "^4.23.9",
     "typescript": "^6.0.0",
     "vitest": "^4.1.10"
   }

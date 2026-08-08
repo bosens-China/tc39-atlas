@@ -1,6 +1,9 @@
 .agents/
 node_modules/
 dist/
+doc_build/
 coverage/
 pnpm-lock.yaml
 **/routeTree.gen.ts
+apps/web/docs/zh/proposals/*.md
+apps/web/docs/en/proposals/*.md

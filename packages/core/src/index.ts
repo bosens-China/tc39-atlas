@@ -1,30 +1,66 @@
-export { createDatabase, type Database } from './database.js';
 export {
-  proposalStages,
-  proposalStatuses,
+  DATASET_FILE_NAME,
+  MANIFEST_FILE_NAME,
+  buildAtlasDataset,
+  createDatasetManifest,
+  generateAtlasDataset,
+  mergePublishedProposals,
+  serializeDataset,
+} from './dataset.js';
+export {
+  DATASET_SCHEMA_VERSION,
+  atlasDatasetSchema,
+  atlasProposalSchema,
+  datasetManifestSchema,
+  parseAtlasDataset,
+  parseDatasetManifest,
+  proposalChangeKindSchema,
   proposalChangeKinds,
+  proposalChangeSchema,
+  proposalSnapshotSchema,
+  proposalStageSchema,
+  proposalStages,
+  proposalStatusSchema,
+  proposalStatuses,
+  proposalSummarySchema,
+  translationMetadataSchema,
+  type AtlasDataset,
+  type AtlasProposal,
+  type DatasetManifest,
   type KeywordMode,
   type ProposalChange,
   type ProposalChangeKind,
   type ProposalDetail,
   type ProposalFilter,
+  type ProposalSnapshot,
   type ProposalStage,
   type ProposalStatus,
-  type ProposalSnapshot,
   type ProposalSummary,
+  type SyncedProposal,
+  type TranslationMetadata,
 } from './model.js';
 export {
-  countProposals,
   getProposalChanges,
   getProposals,
   searchProposals,
 } from './queries.js';
 export { fetchTc39Proposals } from './source.js';
-export { getLatestSync, saveProposals } from './sync.js';
+export { detectProposalChanges, mergeProposalChanges } from './sync.js';
 export {
   TRANSLATION_POLICY_VERSION,
+  isRetryableTranslationError,
   translatePendingReadmes,
   translatePendingReadmesFromEnv,
   type ReadmeTranslator,
+  type TranslationOutput,
+  type TranslationRun,
   type TranslationRunResult,
 } from './translation.js';
+export {
+  seedManualTitleTranslations,
+  TITLE_TRANSLATION_POLICY_VERSION,
+  titleSourceHash,
+  translatePendingTitlesFromEnv,
+  type TitleTranslationRun,
+  type TitleTranslationRunResult,
+} from './title-translation.js';
