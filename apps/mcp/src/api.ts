@@ -18,8 +18,10 @@ import {
 import { swaggerUI } from '@hono/swagger-ui';
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
 
-const stageSchema = z.union(proposalStages.map((stage) => z.literal(stage)));
-const statusSchema = z.enum(proposalStatuses);
+export const stageSchema = z.union(
+  proposalStages.map((stage) => z.literal(stage)),
+);
+export const statusSchema = z.enum(proposalStatuses);
 const changeKindSchema = z.enum(proposalChangeKinds);
 const snapshotSchema = z.object({
   id: z.string(),
@@ -29,11 +31,11 @@ const snapshotSchema = z.object({
   status: statusSchema,
   repository_url: z.string().url(),
 });
-const summarySchema = snapshotSchema
+export const summarySchema = snapshotSchema
   .extend({ data_updated_at: z.string().datetime() })
   .openapi('ProposalSummary');
-const detailSchema = summarySchema
-  .extend({ readme: z.string() })
+export const detailSchema = summarySchema
+  .extend({ readme: z.string(), readme_zh: z.string().nullable() })
   .openapi('ProposalDetail');
 const errorSchema = z.object({
   error: z.string(),
@@ -147,7 +149,7 @@ const healthRoute = createRoute({
   path: '/health',
   responses: {
     200: {
-      description: 'Service health and latest successful sync',
+      description: 'Service is ready and recently synchronized',
       content: {
         'application/json': {
           schema: z.object({
@@ -157,8 +159,31 @@ const healthRoute = createRoute({
         },
       },
     },
+    503: {
+      description: 'No successful sync in the last 48 hours',
+      content: {
+        'application/json': {
+          schema: z.object({
+            status: z.literal('unavailable'),
+            latest_sync: z.string().datetime().nullable(),
+          }),
+        },
+      },
+    },
   },
 });
+
+const MAX_SYNC_AGE_MS = 48 * 60 * 60 * 1000;
+
+export function syncHealth(latestSync: Date | null, now = new Date()) {
+  const ready =
+    latestSync !== null &&
+    now.getTime() - latestSync.getTime() <= MAX_SYNC_AGE_MS;
+  const latest_sync = latestSync?.toISOString() ?? null;
+  return ready
+    ? { status: 'ok' as const, latest_sync }
+    : { status: 'unavailable' as const, latest_sync };
+}
 
 function jsonSnapshot(proposal: ProposalSnapshot) {
   return {
@@ -245,7 +270,11 @@ export function createApiApp(db: Database) {
       return context.json({ error: 'proposal_not_found' }, 404);
     }
     return context.json(
-      { ...jsonSummary(proposal), readme: proposal.readme },
+      {
+        ...jsonSummary(proposal),
+        readme: proposal.readme,
+        readme_zh: proposal.readmeZh,
+      },
       200,
     );
   });
@@ -266,14 +295,10 @@ export function createApiApp(db: Database) {
   });
 
   api.openapi(healthRoute, async (context) => {
-    const latestSync = await getLatestSync(db);
-    return context.json(
-      {
-        status: 'ok' as const,
-        latest_sync: latestSync?.toISOString() ?? null,
-      },
-      200,
-    );
+    const health = syncHealth(await getLatestSync(db));
+    return health.status === 'ok'
+      ? context.json(health, 200)
+      : context.json(health, 503);
   });
 
   api.doc('/openapi.json', {

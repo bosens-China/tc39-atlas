@@ -3,7 +3,6 @@ import {
   getLatestSync,
   getProposals,
   proposalStages,
-  proposalStatuses,
   searchProposals,
   type Database,
   type ProposalStage,
@@ -19,20 +18,15 @@ import type { Context } from 'hono';
 import { logger } from 'hono/logger';
 import * as z from 'zod/v4';
 
-import { createApiApp, jsonSummary } from './api.js';
-
-const stageSchema = z.union(proposalStages.map((stage) => z.literal(stage)));
-const statusSchema = z.enum(proposalStatuses);
-const summarySchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  stage: stageSchema.nullable(),
-  edition: z.number().int().nullable(),
-  status: statusSchema,
-  repository_url: z.url(),
-  data_updated_at: z.iso.datetime(),
-});
-const detailSchema = summarySchema.extend({ readme: z.string() });
+import {
+  createApiApp,
+  detailSchema,
+  jsonSummary,
+  stageSchema,
+  statusSchema,
+  summarySchema,
+  syncHealth,
+} from './api.js';
 
 function jsonContent(value: unknown) {
   return [{ type: 'text' as const, text: JSON.stringify(value, null, 2) }];
@@ -110,7 +104,9 @@ export function createTc39McpServer(db: Database): McpServer {
       const rows = await getProposals(db, ids, include_readme);
       const proposals = rows.map((proposal) => ({
         ...jsonSummary(proposal),
-        ...('readme' in proposal ? { readme: proposal.readme } : {}),
+        ...('readme' in proposal
+          ? { readme: proposal.readme, readme_zh: proposal.readmeZh }
+          : {}),
       }));
       const found = new Set(proposals.map((proposal) => proposal.id));
       const output = {
@@ -188,7 +184,9 @@ function registerResources(server: McpServer, db: Database): void {
       if (!proposal) throw new ResourceNotFoundError(`tc39://proposals/${id}`);
       return {
         ...jsonSummary(proposal),
-        ...('readme' in proposal ? { readme: proposal.readme } : {}),
+        ...('readme' in proposal
+          ? { readme: proposal.readme, readme_zh: proposal.readmeZh }
+          : {}),
       };
     },
   );
@@ -213,11 +211,8 @@ export function createApp(db: Database, host = '127.0.0.1') {
   app.use('*', logger());
   app.route('/', createApiApp(db));
   app.get('/health', async (context) => {
-    const latestSync = await getLatestSync(db);
-    return context.json({
-      status: 'ok',
-      latest_sync: latestSync?.toISOString() ?? null,
-    });
+    const health = syncHealth(await getLatestSync(db));
+    return context.json(health, health.status === 'ok' ? 200 : 503);
   });
   app.all('/mcp', (context: Context) =>
     handler.fetch(context.req.raw, { parsedBody: context.get('parsedBody') }),

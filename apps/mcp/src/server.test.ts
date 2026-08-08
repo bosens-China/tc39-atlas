@@ -7,6 +7,7 @@ import { createMcpHandler } from '@modelcontextprotocol/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createApp, createTc39McpServer } from './server.js';
+import { syncHealth } from './api.js';
 
 const database = {} as unknown as Database;
 const { app, close: closeApp } = createApp(database);
@@ -72,6 +73,7 @@ describe('REST API contract', () => {
     expect(response.status).toBe(200);
     expect(document.paths).toHaveProperty('/api/proposals');
     expect(document.paths).toHaveProperty('/api/changes');
+    expect(JSON.stringify(document)).toContain('readme_zh');
   });
 
   it('rejects invalid query parameters before querying the database', async () => {
@@ -82,5 +84,19 @@ describe('REST API contract', () => {
 
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({ error: 'validation_error' });
+  });
+});
+
+describe('sync health', () => {
+  it('requires a successful sync within 48 hours', () => {
+    const now = new Date('2026-08-08T00:00:00.000Z');
+
+    expect(syncHealth(null, now).status).toBe('unavailable');
+    expect(syncHealth(new Date('2026-08-05T23:59:59.999Z'), now).status).toBe(
+      'unavailable',
+    );
+    expect(syncHealth(new Date('2026-08-07T00:00:00.000Z'), now).status).toBe(
+      'ok',
+    );
   });
 });
