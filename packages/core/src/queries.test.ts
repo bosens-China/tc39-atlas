@@ -64,6 +64,6 @@ describe('proposal queries', () => {
     expect(queries[0]?.sql).toContain('case');
     expect(queries[0]?.sql).toContain('readme_zh_source_hash');
     expect(queries[0]?.sql).toContain('translation_policy_version');
-    expect(queries[0]?.params).toContain('1');
+    expect(queries[0]?.params).toContain('2');
   });
 });

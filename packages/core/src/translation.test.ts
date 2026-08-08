@@ -76,10 +76,28 @@ describe('README translation queue', () => {
     expect(translate).not.toHaveBeenCalled();
     expect(queries[0]?.sql).toContain('readme_zh_source_hash');
     expect(queries[0]?.sql).toContain('translation_policy_version');
-    expect(queries[0]?.params).toEqual(expect.arrayContaining(['', '1']));
+    expect(queries[0]?.params).toEqual(expect.arrayContaining(['', '2']));
   });
 
-  it('routes compatible models without forcing reasoning off', async () => {
+  it('limits a translation run without changing batch semantics', async () => {
+    const candidates = Array.from({ length: 3 }, (_, index) => ({
+      id: `proposal-${index}`,
+      readme: `# Proposal ${index}`,
+      readmeHash: `hash-${index}`,
+    }));
+    const { db, writes } = fakeDatabase(candidates);
+    const translate = vi.fn(async (_readme: string, id: string) => output(id));
+
+    const result = await translatePendingReadmes(db, translate, {
+      maxItems: 2,
+    });
+
+    expect(result.pending).toBe(2);
+    expect(translate).toHaveBeenCalledTimes(2);
+    expect(writes).toHaveLength(2);
+  });
+
+  it('routes compatible models and disables Flash reasoning', async () => {
     const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
     const bodies: unknown[] = [];
     const paths: Array<string | undefined> = [];
@@ -190,10 +208,12 @@ describe('README translation queue', () => {
       });
       expect(bodies[0]).toMatchObject({
         model: 'deepseek-v4-flash',
+        reasoning: { effort: 'none' },
+        max_output_tokens: 384_000,
         store: false,
+        instructions: expect.stringContaining('所有代码块必须逐字符保持不变'),
+        input: expect.stringContaining('<source_markdown>\n# Proposal'),
       });
-      expect(bodies[0]).not.toHaveProperty('reasoning');
-
       const proDatabase = fakeDatabase([
         { id: 'proposal-pro', readme: '# Proposal', readmeHash: 'hash' },
       ]);
@@ -209,7 +229,19 @@ describe('README translation queue', () => {
         translationModel: 'deepseek-v4-pro',
       });
       expect(paths).toEqual(['/responses', '/chat/completions']);
-      expect(bodies[1]).toMatchObject({ model: 'deepseek-v4-pro' });
+      expect(bodies[1]).toMatchObject({
+        model: 'deepseek-v4-pro',
+        messages: [
+          {
+            role: 'system',
+            content: expect.stringMatching(/^Formatting re-enabled/),
+          },
+          {
+            role: 'user',
+            content: expect.stringContaining('<source_markdown>\n# Proposal'),
+          },
+        ],
+      });
       expect(bodies[1]).not.toHaveProperty('thinking');
       expect(bodies[1]).not.toHaveProperty('reasoning_effort');
       expect(info).toHaveBeenCalledWith(
