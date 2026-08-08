@@ -1,26 +1,4 @@
 services:
-  mcp:
-    build:
-      context: .
-      target: runtime
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      ALLOWED_HOSTS: localhost,127.0.0.1
-      DATABASE_URL: postgres://tc39_atlas:tc39_atlas@postgres:5432/tc39_atlas
-      HOST: 0.0.0.0
-      PORT: 43127
-      SYNC_ON_START: 'true'
-      TRANSLATION_API_KEY: ${TRANSLATION_API_KEY:-}
-      TRANSLATION_BASE_URL: ${TRANSLATION_BASE_URL:-}
-      TRANSLATION_BATCH_SIZE: ${TRANSLATION_BATCH_SIZE:-100}
-      TRANSLATION_CONCURRENCY: ${TRANSLATION_CONCURRENCY:-100}
-      TRANSLATION_MODEL: ${TRANSLATION_MODEL:-gpt-5.6-luna}
-    ports:
-      - '127.0.0.1:43127:43127'
-    restart: unless-stopped
-
   postgres:
     image: postgres:17-alpine
     environment:
