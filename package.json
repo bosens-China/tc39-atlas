@@ -11,7 +11,7 @@
     "db:down": "docker compose down",
     "db:migrate": "pnpm --filter @tc39-atlas/core db:migrate",
     "db:up": "docker compose up -d postgres",
-    "dev:mcp": "pnpm --filter @tc39-atlas/core build && pnpm --filter @tc39-atlas/mcp dev",
+    "dev:mcp": "pnpm --filter @tc39-atlas/mcp dev",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint \"**/*.{js,mjs,cjs,ts,tsx}\" --max-warnings=0",

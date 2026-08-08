@@ -232,76 +232,75 @@ export function createApiApp(db: Database) {
           ),
   }).basePath('/api');
 
-  api.openapi(listRoute, async (context) => {
-    const query = context.req.valid('query');
-    const stages = csv(query.stages, Number) as ProposalStage[] | undefined;
-    const editions = csv(query.editions, Number);
-    const statuses = csv(query.statuses, String) as
-      ProposalStatus[] | undefined;
-    const keywords = csv(query.keywords, String);
-    const filter: ProposalFilter = {
-      ...(stages ? { stages } : {}),
-      ...(editions ? { editions } : {}),
-      ...(statuses ? { statuses } : {}),
-      ...(keywords ? { keywords } : {}),
-      keywordMode: query.keyword_mode,
-      limit: query.limit,
-      offset: query.offset,
-    };
-    const [proposals, total] = await Promise.all([
-      searchProposals(db, filter),
-      countProposals(db, filter),
-    ]);
-    return context.json(
-      {
-        proposals: proposals.map(jsonSummary),
-        total,
+  // Hono RPC 依赖链式路由保留完整的输入、响应类型。
+  const routes = api
+    .openapi(listRoute, async (context) => {
+      const query = context.req.valid('query');
+      const stages = csv(query.stages, Number) as ProposalStage[] | undefined;
+      const editions = csv(query.editions, Number);
+      const statuses = csv(query.statuses, String) as
+        ProposalStatus[] | undefined;
+      const keywords = csv(query.keywords, String);
+      const filter: ProposalFilter = {
+        ...(stages ? { stages } : {}),
+        ...(editions ? { editions } : {}),
+        ...(statuses ? { statuses } : {}),
+        ...(keywords ? { keywords } : {}),
+        keywordMode: query.keyword_mode,
         limit: query.limit,
         offset: query.offset,
-      },
-      200,
-    );
-  });
+      };
+      const [proposals, total] = await Promise.all([
+        searchProposals(db, filter),
+        countProposals(db, filter),
+      ]);
+      return context.json(
+        {
+          proposals: proposals.map(jsonSummary),
+          total,
+          limit: query.limit,
+          offset: query.offset,
+        },
+        200,
+      );
+    })
+    .openapi(detailRoute, async (context) => {
+      const { id } = context.req.valid('param');
+      const [proposal] = await getProposals(db, [id], true);
+      if (!proposal || !('readme' in proposal)) {
+        return context.json({ error: 'proposal_not_found' }, 404);
+      }
+      return context.json(
+        {
+          ...jsonSummary(proposal),
+          readme: proposal.readme,
+          readme_zh: proposal.readmeZh,
+        },
+        200,
+      );
+    })
+    .openapi(changesRoute, async (context) => {
+      const { period, limit } = context.req.valid('query');
+      const days = { day: 1, week: 7, month: 30 }[period];
+      const since = new Date(Date.now() - days * 86_400_000);
+      const changes = await getProposalChanges(db, since, limit);
+      return context.json(
+        {
+          period,
+          since: since.toISOString(),
+          changes: changes.map(jsonChange),
+        },
+        200,
+      );
+    })
+    .openapi(healthRoute, async (context) => {
+      const health = syncHealth(await getLatestSync(db));
+      return health.status === 'ok'
+        ? context.json(health, 200)
+        : context.json(health, 503);
+    });
 
-  api.openapi(detailRoute, async (context) => {
-    const { id } = context.req.valid('param');
-    const [proposal] = await getProposals(db, [id], true);
-    if (!proposal || !('readme' in proposal)) {
-      return context.json({ error: 'proposal_not_found' }, 404);
-    }
-    return context.json(
-      {
-        ...jsonSummary(proposal),
-        readme: proposal.readme,
-        readme_zh: proposal.readmeZh,
-      },
-      200,
-    );
-  });
-
-  api.openapi(changesRoute, async (context) => {
-    const { period, limit } = context.req.valid('query');
-    const days = { day: 1, week: 7, month: 30 }[period];
-    const since = new Date(Date.now() - days * 86_400_000);
-    const changes = await getProposalChanges(db, since, limit);
-    return context.json(
-      {
-        period,
-        since: since.toISOString(),
-        changes: changes.map(jsonChange),
-      },
-      200,
-    );
-  });
-
-  api.openapi(healthRoute, async (context) => {
-    const health = syncHealth(await getLatestSync(db));
-    return health.status === 'ok'
-      ? context.json(health, 200)
-      : context.json(health, 503);
-  });
-
-  api.doc('/openapi.json', {
+  routes.doc('/openapi.json', {
     openapi: '3.0.0',
     info: {
       title: 'TC39 Atlas API',
@@ -309,6 +308,8 @@ export function createApiApp(db: Database) {
       description: 'Read-only proposal data for the TC39 Atlas web client.',
     },
   });
-  api.get('/docs', swaggerUI({ url: '/api/openapi.json' }));
-  return api;
+  routes.get('/docs', swaggerUI({ url: '/api/openapi.json' }));
+  return routes;
 }
+
+export type ApiApp = ReturnType<typeof createApiApp>;

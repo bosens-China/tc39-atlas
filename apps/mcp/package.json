@@ -2,11 +2,12 @@
   "name": "@tc39-atlas/mcp",
   "private": true,
   "type": "module",
+  "exports": {
+    "./api": "./src/api.ts"
+  },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
     "dev": "tsx watch src/index.ts",
-    "pretest": "pnpm --filter @tc39-atlas/core build",
-    "start": "node dist/index.js",
+    "start": "tsx src/index.ts",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
@@ -18,12 +19,12 @@
     "@modelcontextprotocol/server": "^2.0.0",
     "@tc39-atlas/core": "workspace:*",
     "hono": "^4.13.1",
+    "tsx": "^4.23.9",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@modelcontextprotocol/client": "^2.0.0",
     "@types/node": "^26.1.2",
-    "tsx": "^4.23.9",
     "typescript": "^6.0.0",
     "vitest": "^4.1.10"
   }
