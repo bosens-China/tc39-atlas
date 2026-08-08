@@ -20,6 +20,7 @@
   "dependencies": {
     "ajv": "^8.20.0",
     "drizzle-orm": "^0.45.2",
+    "openai": "^7.4.0",
     "p-map": "^7.0.6",
     "p-retry": "^8.0.0",
     "postgres": "^3.4.9"

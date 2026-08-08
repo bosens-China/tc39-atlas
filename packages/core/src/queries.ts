@@ -7,6 +7,7 @@ import {
   ilike,
   inArray,
   or,
+  sql,
   type SQL,
 } from 'drizzle-orm';
 
@@ -18,6 +19,7 @@ import type {
   ProposalSummary,
 } from './model.js';
 import { proposalChanges, proposals } from './schema.js';
+import { TRANSLATION_POLICY_VERSION } from './translation.js';
 
 const summaryColumns = {
   id: proposals.id,
@@ -27,6 +29,17 @@ const summaryColumns = {
   status: proposals.status,
   repositoryUrl: proposals.repositoryUrl,
   syncedAt: proposals.syncedAt,
+};
+
+const detailColumns = {
+  ...summaryColumns,
+  readme: proposals.readme,
+  readmeZh: sql<string | null>`case
+    when ${proposals.readmeZhSourceHash} = ${proposals.readmeHash}
+      and ${proposals.translationPolicyVersion} = ${TRANSLATION_POLICY_VERSION}
+    then ${proposals.readmeZh}
+    else null
+  end`,
 };
 
 function buildConditions(filter: ProposalFilter): SQL | undefined {
@@ -100,7 +113,7 @@ export async function getProposals(
 
   const rows = includeReadme
     ? await db
-        .select()
+        .select(detailColumns)
         .from(proposals)
         .where(inArray(proposals.id, [...ids]))
     : await db

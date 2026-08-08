@@ -33,6 +33,7 @@ export interface ProposalSummary extends ProposalSnapshot {
 
 export interface ProposalDetail extends ProposalSummary {
   readme: string;
+  readmeZh: string | null;
 }
 
 export interface ProposalChange {

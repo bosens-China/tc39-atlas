@@ -41,6 +41,11 @@ export const proposals = pgTable(
     repositoryUrl: text('repository_url').notNull(),
     readme: text().notNull(),
     readmeHash: text('readme_hash').notNull(),
+    readmeZh: text('readme_zh'),
+    readmeZhSourceHash: text('readme_zh_source_hash'),
+    translationPolicyVersion: text('translation_policy_version'),
+    translationModel: text('translation_model'),
+    translatedAt: timestamp('translated_at', { withTimezone: true }),
     syncedAt: timestamp('synced_at', { withTimezone: true }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()

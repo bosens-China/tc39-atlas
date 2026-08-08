@@ -21,3 +21,10 @@ export {
 } from './queries.js';
 export { fetchTc39Proposals } from './source.js';
 export { getLatestSync, saveProposals } from './sync.js';
+export {
+  TRANSLATION_POLICY_VERSION,
+  translatePendingReadmes,
+  translatePendingReadmesFromEnv,
+  type ReadmeTranslator,
+  type TranslationRunResult,
+} from './translation.js';
