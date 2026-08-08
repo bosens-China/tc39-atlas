@@ -1,0 +1,4 @@
+interface:
+  display_name: "使用 ai-i18n MCP"
+  short_description: "安全查询、补齐与审校指定 Vite 应用中的 ai-i18n 翻译"
+  default_prompt: "使用 $use-ai-i18n-mcp 补齐指定 Vite 应用的缺失翻译；应用不明确时先询问我。"

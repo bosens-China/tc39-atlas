@@ -55,6 +55,12 @@
       "skillPath": "skills/git-step-commit/SKILL.md",
       "computedHash": "ca337002f0b65103c2c74893b0d91ad652b5e132832bb86ca3a38a9a5dbdc0a1"
     },
+    "integrate-ai-i18n": {
+      "source": "bosens-China/ai-i18n",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/integrate-ai-i18n/SKILL.md",
+      "computedHash": "250982691a76e08c621647ef954814f0b6f43e0667d7cb9f5f99179280579629"
+    },
     "manage-prd-docs": {
       "source": "bosens-China/my-skills",
       "sourceType": "github",
@@ -78,6 +84,12 @@
       "sourceType": "github",
       "skillPath": "plugins/plugin-dev/skills/skill-development/SKILL.md",
       "computedHash": "0f91d445e350793549a8ed7b450ef3777a5a82c800b71523961c042eb65cca27"
+    },
+    "use-ai-i18n-mcp": {
+      "source": "bosens-China/ai-i18n",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/use-ai-i18n-mcp/SKILL.md",
+      "computedHash": "c7aa826997e2b8a86193576b8072da22811d547bd0b985cc8279bd63df8f6ec4"
     }
   }
 }
