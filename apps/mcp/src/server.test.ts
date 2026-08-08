@@ -1,35 +1,58 @@
-import type { Database } from '@tc39-atlas/core';
-import {
-  Client,
-  StreamableHTTPClientTransport,
-} from '@modelcontextprotocol/client';
-import { createMcpHandler } from '@modelcontextprotocol/server';
+import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { createApp, createTc39McpServer } from './server.js';
-import { syncHealth } from './api.js';
+import { DatasetStore } from './cache.js';
+import { createTc39McpServer } from './server.js';
 
-const database = {} as unknown as Database;
-const { app, close: closeApp } = createApp(database);
-const handler = createMcpHandler(() => createTc39McpServer(database));
-const client = new Client(
-  { name: 'tc39-atlas-test', version: '1.0.0' },
-  { versionNegotiation: { mode: 'auto' } },
-);
-const transport = new StreamableHTTPClientTransport(
-  new URL('http://test.local/mcp'),
-  { fetch: (url, init) => handler.fetch(new Request(url, init)) },
-);
+const dataset = {
+  schemaVersion: 2 as const,
+  generatedAt: '2026-08-08T00:00:00.000Z',
+  proposals: [
+    {
+      id: 'proposal-a',
+      title: 'Proposal A',
+      titleZh: '提案 A',
+      titleTranslation: {
+        sourceHash: 'b'.repeat(64),
+        policyVersion: '1',
+        model: 'test',
+        translatedAt: '2026-08-08T00:00:00.000Z',
+      },
+      stage: 3 as const,
+      edition: null,
+      status: 'active' as const,
+      repositoryUrl: 'https://github.com/tc39/proposal-a',
+      syncedAt: '2026-08-08T00:00:00.000Z',
+      readme: '# Proposal A',
+      readmeHash: 'a'.repeat(64),
+      readmeZh: '# 提案 A',
+      translation: {
+        sourceHash: 'a'.repeat(64),
+        policyVersion: '2',
+        model: 'test',
+        translatedAt: '2026-08-08T00:00:00.000Z',
+      },
+    },
+  ],
+  changes: [],
+};
+const store = new DatasetStore(dataset, 'a'.repeat(64));
+const server = createTc39McpServer(store);
+const client = new Client({ name: 'tc39-atlas-test', version: '1.0.0' });
+const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 
-beforeAll(() => client.connect(transport));
-afterAll(async () => {
-  await client.close();
-  await handler.close();
-  await closeApp();
+beforeAll(async () => {
+  await server.connect(serverTransport);
+  await client.connect(clientTransport);
 });
 
-describe('MCP HTTP endpoint', () => {
-  it('negotiates capabilities with the official client', async () => {
+afterAll(async () => {
+  await client.close();
+  await server.close();
+});
+
+describe('local MCP contract', () => {
+  it('publishes the two read-only tools and proposal resources', async () => {
     const tools = await client.listTools();
     const resources = await client.listResourceTemplates();
 
@@ -37,66 +60,32 @@ describe('MCP HTTP endpoint', () => {
       'search_proposals',
       'get_proposals',
     ]);
+    expect(tools.tools[0]?.annotations).toMatchObject({
+      readOnlyHint: true,
+      destructiveHint: false,
+    });
     expect(
       resources.resourceTemplates.map((resource) => resource.uriTemplate),
     ).toContain('tc39://proposals/{id}');
   });
 
-  it.each([
-    ['tools/list', 'search_proposals'],
-    ['resources/templates/list', 'tc39://proposals/{id}'],
-  ])('serves %s', async (method, expected) => {
-    const response = await app.request('http://127.0.0.1/mcp', {
-      method: 'POST',
-      headers: {
-        accept: 'application/json, text/event-stream',
-        'content-type': 'application/json',
-        host: '127.0.0.1',
-      },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method }),
+  it('returns structured search and detail results from the cache', async () => {
+    const search = await client.callTool({
+      name: 'search_proposals',
+      arguments: { stages: [3], keywords: ['proposal'] },
+    });
+    const detail = await client.callTool({
+      name: 'get_proposals',
+      arguments: { ids: ['proposal-a', 'missing'], include_readme: true },
     });
 
-    expect(response.status).toBe(200);
-    expect(await response.text()).toContain(expected);
-  });
-});
-
-describe('REST API contract', () => {
-  it('publishes OpenAPI documentation', async () => {
-    const response = await app.request('http://127.0.0.1/api/openapi.json', {
-      headers: { host: '127.0.0.1' },
+    expect(search.structuredContent).toMatchObject({
+      count: 1,
+      proposals: [{ id: 'proposal-a', title_zh: '提案 A' }],
     });
-    const document = (await response.json()) as {
-      paths?: Record<string, unknown>;
-    };
-
-    expect(response.status).toBe(200);
-    expect(document.paths).toHaveProperty('/api/proposals');
-    expect(document.paths).toHaveProperty('/api/changes');
-    expect(JSON.stringify(document)).toContain('readme_zh');
-  });
-
-  it('rejects invalid query parameters before querying the database', async () => {
-    const response = await app.request(
-      'http://127.0.0.1/api/proposals?statuses=unknown',
-      { headers: { host: '127.0.0.1' } },
-    );
-
-    expect(response.status).toBe(400);
-    expect(await response.json()).toMatchObject({ error: 'validation_error' });
-  });
-});
-
-describe('sync health', () => {
-  it('requires a successful sync within 48 hours', () => {
-    const now = new Date('2026-08-08T00:00:00.000Z');
-
-    expect(syncHealth(null, now).status).toBe('unavailable');
-    expect(syncHealth(new Date('2026-08-05T23:59:59.999Z'), now).status).toBe(
-      'unavailable',
-    );
-    expect(syncHealth(new Date('2026-08-07T00:00:00.000Z'), now).status).toBe(
-      'ok',
-    );
+    expect(detail.structuredContent).toMatchObject({
+      proposals: [{ id: 'proposal-a', readme_zh: '# 提案 A' }],
+      missing_ids: ['missing'],
+    });
   });
 });

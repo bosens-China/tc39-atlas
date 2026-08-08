@@ -2,26 +2,25 @@
   "name": "@tc39-atlas/core",
   "private": true,
   "type": "module",
-  "exports": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./model": "./src/model.ts",
+    "./queries": "./src/queries.ts"
+  },
   "scripts": {
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:migrate:runtime": "tsx src/migrate-cli.ts",
-    "sync": "tsx src/sync-cli.ts",
+    "sync": "tsx src/generate-cli.ts",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "ajv": "^8.20.0",
-    "drizzle-orm": "^0.45.2",
     "openai": "^7.4.0",
     "p-map": "^7.0.6",
     "p-retry": "^8.0.0",
-    "postgres": "^3.4.9"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
-    "drizzle-kit": "^0.31.10",
     "tsx": "^4.23.9",
     "typescript": "^6.0.0",
     "vitest": "^4.1.10"

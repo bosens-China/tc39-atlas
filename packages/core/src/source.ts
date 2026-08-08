@@ -210,7 +210,7 @@ export async function fetchTc39Proposals(): Promise<SyncedProposal[]> {
   ]);
   verifyOfficialSchema(schema);
   const metadata = parseDataset(dataset);
-  const syncedAt = new Date();
+  const syncedAt = new Date().toISOString();
 
   return pMap(
     metadata,

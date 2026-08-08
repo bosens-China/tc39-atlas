@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link, useLang } from '@rspress/core/runtime';
 import { Card, Tooltip } from 'antd';
 import { GithubOutlined, RightOutlined } from '@ant-design/icons';
 import { EditionTag, StageTag, StatusTag } from './StageTag';
@@ -6,27 +7,29 @@ import type { ProposalSummary } from '../api/client';
 
 interface ProposalCardProps {
   proposal: ProposalSummary;
-  onClick: () => void;
+  href: string;
 }
 
 export const ProposalCard: React.FC<ProposalCardProps> = ({
   proposal,
-  onClick,
+  href,
 }) => {
+  const lang = useLang();
   const formattedTime = new Date(proposal.data_updated_at).toLocaleDateString(
-    'zh-CN',
+    lang === 'zh' ? 'zh-CN' : 'en',
     {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
     },
   );
+  const title =
+    lang === 'zh' ? (proposal.title_zh ?? proposal.title) : proposal.title;
 
   return (
     <Card
       hoverable
-      onClick={onClick}
-      className="bg-slate-800/90 border-slate-700/80 rounded-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/10 hover:border-indigo-500/40 group overflow-hidden"
+      className="group overflow-hidden rounded-xl border-slate-200 bg-white/90 transition-all duration-300 hover:-translate-y-1 hover:border-indigo-500/40 hover:shadow-xl hover:shadow-indigo-500/10 dark:border-slate-700/80 dark:bg-slate-800/90"
       styles={{
         body: { padding: '1.25rem' },
       }}
@@ -45,8 +48,7 @@ export const ProposalCard: React.FC<ProposalCardProps> = ({
               href={proposal.repository_url}
               target="_blank"
               rel="noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="text-slate-400 hover:text-white transition-colors p-1"
+              className="p-1 text-slate-500 transition-colors hover:text-slate-950 dark:text-slate-400 dark:hover:text-white"
             >
               <GithubOutlined className="text-lg" />
             </a>
@@ -55,20 +57,35 @@ export const ProposalCard: React.FC<ProposalCardProps> = ({
 
         {/* 卡片主体：标题与 ID */}
         <div>
-          <h3 className="text-base font-semibold text-slate-100 group-hover:text-indigo-400 transition-colors line-clamp-2 mb-1">
-            {proposal.title}
-          </h3>
+          <Link
+            to={href}
+            className="mb-1 line-clamp-2 text-base font-semibold text-slate-900 transition-colors group-hover:text-indigo-500 dark:text-slate-100 dark:group-hover:text-indigo-400"
+          >
+            {title}
+          </Link>
+          {lang === 'zh' && title !== proposal.title ? (
+            <p className="mb-1 line-clamp-1 text-xs text-slate-500 dark:text-slate-400">
+              {proposal.title}
+            </p>
+          ) : null}
           <p className="text-xs font-mono text-slate-400 tracking-wide">
             id: {proposal.id}
           </p>
         </div>
 
         {/* 卡片底部：更新时间与查看详情箭头 */}
-        <div className="pt-3 border-t border-slate-700/50 flex items-center justify-between text-xs text-slate-400">
-          <span>更新于 {formattedTime}</span>
-          <span className="flex items-center text-indigo-400 font-medium group-hover:translate-x-1 transition-transform">
-            详情 <RightOutlined className="ml-1 text-[10px]" />
+        <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-xs text-slate-500 dark:border-slate-700/50 dark:text-slate-400">
+          <span>
+            {lang === 'zh' ? '更新于 ' : 'Updated '}
+            {formattedTime}
           </span>
+          <Link
+            to={href}
+            className="flex items-center font-medium text-indigo-500 transition-transform group-hover:translate-x-1 dark:text-indigo-400"
+          >
+            {lang === 'zh' ? '详情' : 'Details'}
+            <RightOutlined className="ml-1 text-[10px]" />
+          </Link>
         </div>
       </div>
     </Card>

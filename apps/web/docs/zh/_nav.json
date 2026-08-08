@@ -1,0 +1,6 @@
+[
+  { "text": "首页", "link": "/" },
+  { "text": "提案", "link": "/proposals/" },
+  { "text": "周期动态", "link": "/changes/" },
+  { "text": "关于", "link": "/about/data" }
+]

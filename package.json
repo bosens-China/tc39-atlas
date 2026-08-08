@@ -4,13 +4,10 @@
   "type": "module",
   "packageManager": "pnpm@11.15.1",
   "engines": {
-    "node": "22.x"
+    "node": ">=22.14 <25"
   },
   "scripts": {
     "build": "pnpm -r build",
-    "db:down": "docker compose down",
-    "db:migrate": "pnpm --filter @tc39-atlas/core db:migrate",
-    "db:up": "docker compose up -d postgres",
     "dev:mcp": "pnpm --filter @tc39-atlas/mcp dev",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

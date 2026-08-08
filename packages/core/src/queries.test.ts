@@ -1,69 +1,105 @@
-import { drizzle } from 'drizzle-orm/pg-proxy';
 import { describe, expect, it } from 'vitest';
 
-import type { Database } from './database.js';
-import { getProposals, searchProposals } from './queries.js';
-import * as schema from './schema.js';
+import type { AtlasProposal } from './model.js';
+import {
+  getProposalChanges,
+  getProposals,
+  searchProposals,
+} from './queries.js';
+
+const base: AtlasProposal = {
+  id: 'proposal-a',
+  title: 'Iterator Helpers',
+  titleZh: '迭代器辅助方法',
+  titleTranslation: {
+    sourceHash: 'b'.repeat(64),
+    policyVersion: '1',
+    model: 'test',
+    translatedAt: '2026-08-08T00:00:00.000Z',
+  },
+  stage: 3,
+  edition: null,
+  status: 'active',
+  repositoryUrl: 'https://github.com/tc39/proposal-iterator-helpers',
+  syncedAt: '2026-08-08T00:00:00.000Z',
+  readme: '# Iterator helpers',
+  readmeHash: 'a'.repeat(64),
+  readmeZh: '# 迭代器辅助方法',
+  translation: {
+    sourceHash: 'a'.repeat(64),
+    policyVersion: '2',
+    model: 'test',
+    translatedAt: '2026-08-08T00:00:00.000Z',
+  },
+};
 
 describe('proposal queries', () => {
-  it('combines filters and escapes LIKE wildcards', async () => {
-    const queries: Array<{ sql: string; params: unknown[] }> = [];
-    const proxy = drizzle(
-      async (sql, params) => {
-        queries.push({ sql, params });
-        return { rows: [] };
+  it('combines filters, keyword modes, sorting, and pagination', () => {
+    const proposals: AtlasProposal[] = [
+      base,
+      {
+        ...base,
+        id: 'proposal-b',
+        title: 'Metadata',
+        titleZh: '元数据',
+        stage: 2.7,
+        readme: '# Decorator metadata',
       },
-      { schema },
-    );
+      {
+        ...base,
+        id: 'proposal-c',
+        title: 'Finished',
+        titleZh: null,
+        titleTranslation: null,
+        stage: 4,
+        status: 'finished',
+        readmeZh: null,
+        translation: null,
+      },
+    ];
 
-    await searchProposals(proxy as unknown as Database, {
-      stages: [2.7],
-      statuses: ['active'],
-      keywords: ['iterator', '100%_ready'],
-      keywordMode: 'all',
-      limit: 25,
-      offset: 5,
-    });
-
-    expect(queries).toHaveLength(1);
-    expect(queries[0]?.sql).toContain('from "proposals"');
-    expect(queries[0]?.params).toEqual([
-      '2.7',
-      'active',
-      '%iterator%',
-      '%iterator%',
-      '%iterator%',
-      '%100\\%\\_ready%',
-      '%100\\%\\_ready%',
-      '%100\\%\\_ready%',
-      25,
-      5,
-    ]);
-
-    await searchProposals(proxy as unknown as Database, {
-      keywords: ['iterator', 'helpers'],
-      keywordMode: 'any',
-    });
-
-    expect(queries[0]?.sql).toContain(') and (');
-    expect(queries[1]?.sql).toContain(') or (');
+    expect(
+      searchProposals(proposals, {
+        stages: [2.7, 3],
+        statuses: ['active'],
+        keywords: ['metadata', 'decorator'],
+        keywordMode: 'all',
+      }),
+    ).toMatchObject({ total: 1, proposals: [{ id: 'proposal-b' }] });
+    expect(
+      searchProposals(proposals, {
+        keywords: ['辅助方法', 'metadata'],
+        keywordMode: 'any',
+        limit: 1,
+        offset: 1,
+      }),
+    ).toMatchObject({ total: 2, proposals: [{ id: 'proposal-b' }] });
   });
 
-  it('only exposes a translation matching the current README and policy', async () => {
-    const queries: Array<{ sql: string; params: unknown[] }> = [];
-    const proxy = drizzle(
-      async (sql, params) => {
-        queries.push({ sql, params });
-        return { rows: [] };
+  it('preserves requested detail order and filters changes by time', () => {
+    const second = { ...base, id: 'proposal-b', title: 'Proposal B' };
+    expect(
+      getProposals([base, second], ['proposal-b', 'missing', 'proposal-a']),
+    ).toEqual([second, base]);
+
+    const changes = [
+      {
+        id: 'new',
+        proposalId: base.id,
+        kind: 'added' as const,
+        before: null,
+        after: base,
+        occurredAt: '2026-08-08T00:00:00.000Z',
       },
-      { schema },
-    );
-
-    await getProposals(proxy as unknown as Database, ['proposal-a'], true);
-
-    expect(queries[0]?.sql).toContain('case');
-    expect(queries[0]?.sql).toContain('readme_zh_source_hash');
-    expect(queries[0]?.sql).toContain('translation_policy_version');
-    expect(queries[0]?.params).toContain('2');
+      {
+        id: 'old',
+        proposalId: base.id,
+        kind: 'added' as const,
+        before: null,
+        after: base,
+        occurredAt: '2026-07-01T00:00:00.000Z',
+      },
+    ];
+    expect(getProposalChanges(changes, new Date('2026-08-01'))).toHaveLength(1);
   });
 });

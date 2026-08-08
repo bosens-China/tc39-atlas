@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLang } from '@rspress/core/runtime';
 import { Tag } from 'antd';
 import type { ProposalStage, ProposalStatus } from '../api/client';
 
@@ -43,11 +44,21 @@ export const StageTag: React.FC<StageTagProps> = ({ stage }) => {
  * 提案状态徽章
  */
 export const StatusTag: React.FC<StatusTagProps> = ({ status }) => {
+  const lang = useLang();
   const config: Record<ProposalStatus, { color: string; label: string }> = {
-    active: { color: 'processing', label: '进行中' },
-    finished: { color: 'success', label: '已完成' },
-    inactive: { color: 'warning', label: '不活跃' },
-    withdrawn: { color: 'error', label: '已撤回' },
+    active: { color: 'processing', label: lang === 'zh' ? '进行中' : 'Active' },
+    finished: {
+      color: 'success',
+      label: lang === 'zh' ? '已完成' : 'Finished',
+    },
+    inactive: {
+      color: 'warning',
+      label: lang === 'zh' ? '不活跃' : 'Inactive',
+    },
+    withdrawn: {
+      color: 'error',
+      label: lang === 'zh' ? '已撤回' : 'Withdrawn',
+    },
   };
 
   const { color, label } = config[status];

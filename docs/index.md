@@ -4,6 +4,14 @@
 
 - [TC39 Atlas 产品 PRD](./PRD.md)
 
+## 未来计划
+
+- [npm 自动发布](./plans/npm-publishing/PRD.md)
+
+## 进行中的需求
+
+- [提案元数据双语化](./work/proposal-metadata-i18n/PRD.md)
+
 ## 其他文档
 
-- [本地开发与后端启动](../README.md)
+- [使用、开发与发布](../README.md)

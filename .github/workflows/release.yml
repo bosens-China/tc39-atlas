@@ -1,0 +1,44 @@
+name: Publish npm package (disabled)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    # 首次人工发布和 npm Trusted Publisher 尚未完成，暂时保留完整流程但禁止执行。
+    if: ${{ false }}
+    environment: npm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.15.1
+          run_install: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @tc39-atlas/mcp typecheck
+      - run: pnpm --filter @tc39-atlas/mcp test
+      - run: pnpm --filter @tc39-atlas/mcp build
+
+      - name: Verify release tag and package contents
+        working-directory: apps/mcp
+        run: |
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          test "${GITHUB_REF_NAME}" = "v${PACKAGE_VERSION}"
+          npm pack --dry-run
+
+      - name: Publish with npm Trusted Publishing
+        working-directory: apps/mcp
+        run: npm publish --access public

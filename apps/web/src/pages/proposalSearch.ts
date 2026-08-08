@@ -68,3 +68,28 @@ export function validateProposalSearch(
     offset: readNumber(search.offset, 0, 0),
   };
 }
+
+export function readProposalSearch(params: URLSearchParams): ProposalSearch {
+  return validateProposalSearch(Object.fromEntries(params.entries()));
+}
+
+export function writeProposalSearch(
+  search: ProposalQueryParams,
+): URLSearchParams {
+  const value = validateProposalSearch({ ...search });
+  const params = new URLSearchParams();
+  if (value.stages?.length) params.set('stages', value.stages.join(','));
+  if (value.editions?.length) params.set('editions', value.editions.join(','));
+  if (value.statuses?.length) params.set('statuses', value.statuses.join(','));
+  if (value.keywords?.length) params.set('keywords', value.keywords.join(','));
+  if (value.keyword_mode !== DEFAULT_PROPOSAL_SEARCH.keyword_mode) {
+    params.set('keyword_mode', value.keyword_mode);
+  }
+  if (value.limit !== DEFAULT_PROPOSAL_SEARCH.limit) {
+    params.set('limit', String(value.limit));
+  }
+  if (value.offset !== DEFAULT_PROPOSAL_SEARCH.offset) {
+    params.set('offset', String(value.offset));
+  }
+  return params;
+}

@@ -1,23 +1,24 @@
-/* 全局滚动条样式美化 */
+@unocss;
+
+/* 让文档主题和交互页面共享同一套基础行为。 */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0f172a;
+  background: var(--rp-c-bg);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: var(--rp-c-divider);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: var(--rp-c-text-3);
 }
 
-/* 动效与辅助平滑过渡 */
 html {
   scroll-behavior: smooth;
 }
@@ -25,6 +26,12 @@ html {
 body {
   margin: 0;
   padding: 0;
-  background-color: #020617;
-  color: #f8fafc;
+}
+
+.ant-card .ant-card-body {
+  height: 100%;
+}
+
+.proposal-meta + .rspress-doc h1:first-child {
+  margin-top: 1rem;
 }

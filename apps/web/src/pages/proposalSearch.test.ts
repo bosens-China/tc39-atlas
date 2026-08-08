@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_PROPOSAL_SEARCH,
+  readProposalSearch,
   validateProposalSearch,
+  writeProposalSearch,
 } from './proposalSearch';
 
 describe('提案路由搜索参数', () => {
@@ -40,5 +42,25 @@ describe('提案路由搜索参数', () => {
         offset: -1,
       }),
     ).toEqual({ keyword_mode: 'all', limit: 500, offset: 0 });
+  });
+
+  it('应当在 URLSearchParams 与筛选条件之间稳定往返', () => {
+    const params = writeProposalSearch({
+      stages: [2.7, 3],
+      statuses: ['active'],
+      keywords: ['decorator', 'metadata'],
+      keyword_mode: 'any',
+      limit: 48,
+      offset: 48,
+    });
+
+    expect(readProposalSearch(params)).toEqual({
+      stages: [2.7, 3],
+      statuses: ['active'],
+      keywords: ['decorator', 'metadata'],
+      keyword_mode: 'any',
+      limit: 48,
+      offset: 48,
+    });
   });
 });

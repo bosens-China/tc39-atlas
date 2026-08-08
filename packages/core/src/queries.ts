@@ -1,141 +1,127 @@
-import {
-  and,
-  asc,
-  count,
-  desc,
-  gte,
-  ilike,
-  inArray,
-  or,
-  sql,
-  type SQL,
-} from 'drizzle-orm';
-
-import type { Database } from './database.js';
 import type {
+  AtlasProposal,
+  ProposalChange,
   ProposalDetail,
   ProposalFilter,
-  ProposalChange,
   ProposalSummary,
 } from './model.js';
-import { proposalChanges, proposals } from './schema.js';
-import { TRANSLATION_POLICY_VERSION } from './translation.js';
 
-const summaryColumns = {
-  id: proposals.id,
-  title: proposals.title,
-  stage: proposals.stage,
-  edition: proposals.edition,
-  status: proposals.status,
-  repositoryUrl: proposals.repositoryUrl,
-  syncedAt: proposals.syncedAt,
-};
+const MAX_RESULTS = 500;
 
-const detailColumns = {
-  ...summaryColumns,
-  readme: proposals.readme,
-  readmeZh: sql<string | null>`case
-    when ${proposals.readmeZhSourceHash} = ${proposals.readmeHash}
-      and ${proposals.translationPolicyVersion} = ${TRANSLATION_POLICY_VERSION}
-    then ${proposals.readmeZh}
-    else null
-  end`,
-};
+function summary(proposal: AtlasProposal): ProposalSummary {
+  const {
+    id,
+    title,
+    titleZh,
+    stage,
+    edition,
+    status,
+    repositoryUrl,
+    syncedAt,
+  } = proposal;
+  return {
+    id,
+    title,
+    titleZh,
+    stage,
+    edition,
+    status,
+    repositoryUrl,
+    syncedAt,
+  };
+}
 
-function buildConditions(filter: ProposalFilter): SQL | undefined {
-  const conditions: SQL[] = [];
-
-  if (filter.stages?.length) {
-    conditions.push(inArray(proposals.stage, [...filter.stages]));
-  }
-  if (filter.editions?.length) {
-    conditions.push(inArray(proposals.edition, [...filter.editions]));
-  }
-  if (filter.statuses?.length) {
-    conditions.push(inArray(proposals.status, [...filter.statuses]));
-  }
-
-  const keywordConditions = filter.keywords
-    ?.map((keyword) => keyword.trim())
+function includesKeywords(
+  proposal: AtlasProposal,
+  keywords: readonly string[],
+  mode: 'all' | 'any',
+): boolean {
+  const haystack = [
+    proposal.id,
+    proposal.title,
+    proposal.titleZh ?? '',
+    proposal.readme,
+    proposal.readmeZh ?? '',
+  ]
+    .join('\n')
+    .toLocaleLowerCase();
+  const matches = keywords
+    .map((keyword) => keyword.trim().toLocaleLowerCase())
     .filter(Boolean)
-    .map((keyword) => {
-      const pattern = `%${keyword.replace(/[\\%_]/g, '\\$&')}%`;
-      return or(
-        ilike(proposals.id, pattern),
-        ilike(proposals.title, pattern),
-        ilike(proposals.readme, pattern),
-      );
-    })
-    .filter((condition): condition is SQL => condition !== undefined);
+    .map((keyword) => haystack.includes(keyword));
+  return (
+    matches.length === 0 ||
+    (mode === 'any' ? matches.some(Boolean) : matches.every(Boolean))
+  );
+}
 
-  if (keywordConditions?.length) {
-    const keywords =
-      filter.keywordMode === 'any'
-        ? or(...keywordConditions)
-        : and(...keywordConditions);
-    if (keywords) conditions.push(keywords);
+function matchesFilter(
+  proposal: AtlasProposal,
+  filter: ProposalFilter,
+): boolean {
+  if (
+    filter.stages?.length &&
+    (proposal.stage === null || !filter.stages.includes(proposal.stage))
+  ) {
+    return false;
   }
-
-  return and(...conditions);
+  if (
+    filter.editions?.length &&
+    (proposal.edition === null || !filter.editions.includes(proposal.edition))
+  ) {
+    return false;
+  }
+  if (filter.statuses?.length && !filter.statuses.includes(proposal.status)) {
+    return false;
+  }
+  return includesKeywords(
+    proposal,
+    filter.keywords ?? [],
+    filter.keywordMode ?? 'all',
+  );
 }
 
-// 查询条件集中在 core，确保 Web 与 MCP 共享完全一致的数据语义。
-export async function searchProposals(
-  db: Database,
+// 查询规则集中在 core，确保静态 Web 与本地 MCP 使用同一语义。
+export function searchProposals(
+  proposals: readonly AtlasProposal[],
   filter: ProposalFilter = {},
-): Promise<ProposalSummary[]> {
-  return db
-    .select(summaryColumns)
-    .from(proposals)
-    .where(buildConditions(filter))
-    .orderBy(desc(proposals.stage), asc(proposals.title))
-    .limit(Math.min(filter.limit ?? 500, 500))
-    .offset(filter.offset ?? 0);
+): { proposals: ProposalSummary[]; total: number } {
+  const offset = Math.max(0, filter.offset ?? 0);
+  const limit = Math.min(Math.max(1, filter.limit ?? MAX_RESULTS), MAX_RESULTS);
+  const matches = proposals
+    .filter((proposal) => matchesFilter(proposal, filter))
+    .sort(
+      (left, right) =>
+        (right.stage ?? -1) - (left.stage ?? -1) ||
+        left.title.localeCompare(right.title),
+    );
+  return {
+    proposals: matches.slice(offset, offset + limit).map(summary),
+    total: matches.length,
+  };
 }
 
-export async function countProposals(
-  db: Database,
-  filter: ProposalFilter = {},
-): Promise<number> {
-  const [result] = await db
-    .select({ value: count() })
-    .from(proposals)
-    .where(buildConditions(filter));
-  return result?.value ?? 0;
-}
-
-export async function getProposals(
-  db: Database,
+export function getProposals(
+  proposals: readonly AtlasProposal[],
   ids: readonly string[],
   includeReadme = true,
-): Promise<Array<ProposalSummary | ProposalDetail>> {
-  if (ids.length === 0) return [];
-
-  const rows = includeReadme
-    ? await db
-        .select(detailColumns)
-        .from(proposals)
-        .where(inArray(proposals.id, [...ids]))
-    : await db
-        .select(summaryColumns)
-        .from(proposals)
-        .where(inArray(proposals.id, [...ids]));
-  const byId = new Map(rows.map((row) => [row.id, row]));
+): Array<ProposalSummary | ProposalDetail> {
+  const byId = new Map(proposals.map((proposal) => [proposal.id, proposal]));
   return ids.flatMap((id) => {
-    const row = byId.get(id);
-    return row ? [row] : [];
+    const proposal = byId.get(id);
+    if (!proposal) return [];
+    return [includeReadme ? proposal : summary(proposal)];
   });
 }
 
-export async function getProposalChanges(
-  db: Database,
+export function getProposalChanges(
+  changes: readonly ProposalChange[],
   since: Date,
-  limit = 500,
-): Promise<ProposalChange[]> {
-  return db
-    .select()
-    .from(proposalChanges)
-    .where(gte(proposalChanges.occurredAt, since))
-    .orderBy(desc(proposalChanges.occurredAt), desc(proposalChanges.id))
-    .limit(Math.min(limit, 500));
+  limit = MAX_RESULTS,
+): ProposalChange[] {
+  const sinceTime = since.getTime();
+  return changes
+    .filter((change) => Date.parse(change.occurredAt) >= sinceTime)
+    .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
+    .slice(0, Math.min(Math.max(1, limit), MAX_RESULTS));
 }

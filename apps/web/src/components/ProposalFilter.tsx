@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLang } from '@rspress/core/runtime';
 import { Button, Input, Select, Tooltip } from 'antd';
 import { ClearOutlined, SearchOutlined } from '@ant-design/icons';
 import type {
@@ -41,6 +42,7 @@ export const ProposalFilter: React.FC<ProposalFilterProps> = ({
   onChange,
   onReset,
 }) => {
+  const lang = useLang();
   const handleKeywordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const text = e.target.value;
     const keywords = text ? text.split(/\s+/).filter(Boolean) : undefined;
@@ -55,12 +57,16 @@ export const ProposalFilter: React.FC<ProposalFilterProps> = ({
   );
 
   return (
-    <div className="bg-slate-800/80 backdrop-blur-sm border border-slate-700/70 rounded-xl p-4 mb-6 shadow-md">
+    <div className="mb-6 rounded-xl border border-slate-200 bg-white/80 p-4 shadow-md backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-800/80">
       <div className="flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center">
         {/* 关键词搜索框 & 模式 */}
         <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
           <Input
-            placeholder="搜索提案标题、ID 或 README 关键字..."
+            placeholder={
+              lang === 'zh'
+                ? '搜索提案标题、ID 或 README 关键字...'
+                : 'Search title, ID, or README keywords...'
+            }
             prefix={<SearchOutlined className="text-slate-400" />}
             value={value.keywords?.join(' ') || ''}
             onChange={handleKeywordChange}
@@ -74,8 +80,14 @@ export const ProposalFilter: React.FC<ProposalFilterProps> = ({
               onChange({ ...value, keyword_mode: mode, offset: 0 })
             }
             options={[
-              { label: '匹配全部关键词 (ALL)', value: 'all' },
-              { label: '匹配任一关键词 (ANY)', value: 'any' },
+              {
+                label: lang === 'zh' ? '匹配全部关键词 (ALL)' : 'Match all',
+                value: 'all',
+              },
+              {
+                label: lang === 'zh' ? '匹配任一关键词 (ANY)' : 'Match any',
+                value: 'any',
+              },
             ]}
             className="w-48"
           />
@@ -87,10 +99,17 @@ export const ProposalFilter: React.FC<ProposalFilterProps> = ({
           <Select
             mode="multiple"
             maxTagCount="responsive"
-            placeholder="提案阶段 (Stage)"
+            placeholder={lang === 'zh' ? '提案阶段 (Stage)' : 'Stage'}
             value={value.stages}
             onChange={(stages) => onChange({ ...value, stages, offset: 0 })}
-            options={STAGE_OPTIONS}
+            options={
+              lang === 'zh'
+                ? STAGE_OPTIONS
+                : STAGE_OPTIONS.map(({ value }) => ({
+                    value,
+                    label: `Stage ${value}`,
+                  }))
+            }
             className="min-w-44 max-w-xs flex-1"
             allowClear
           />
@@ -99,10 +118,19 @@ export const ProposalFilter: React.FC<ProposalFilterProps> = ({
           <Select
             mode="multiple"
             maxTagCount="responsive"
-            placeholder="提案状态 (Status)"
+            placeholder={lang === 'zh' ? '提案状态 (Status)' : 'Status'}
             value={value.statuses}
             onChange={(statuses) => onChange({ ...value, statuses, offset: 0 })}
-            options={STATUS_OPTIONS}
+            options={
+              lang === 'zh'
+                ? STATUS_OPTIONS
+                : [
+                    { label: 'Active', value: 'active' },
+                    { label: 'Finished', value: 'finished' },
+                    { label: 'Inactive', value: 'inactive' },
+                    { label: 'Withdrawn', value: 'withdrawn' },
+                  ]
+            }
             className="min-w-40 max-w-xs flex-1"
             allowClear
           />
@@ -111,7 +139,7 @@ export const ProposalFilter: React.FC<ProposalFilterProps> = ({
           <Select
             mode="multiple"
             maxTagCount="responsive"
-            placeholder="ES 版本 (Edition)"
+            placeholder={lang === 'zh' ? 'ES 版本 (Edition)' : 'Edition'}
             value={value.editions}
             onChange={(editions) => onChange({ ...value, editions, offset: 0 })}
             options={EDITION_OPTIONS}
@@ -128,7 +156,7 @@ export const ProposalFilter: React.FC<ProposalFilterProps> = ({
                 danger
                 type="dashed"
               >
-                重置
+                {lang === 'zh' ? '重置' : 'Reset'}
               </Button>
             </Tooltip>
           )}
