@@ -6,7 +6,7 @@ import type {
   SyncedProposal,
 } from './model.js';
 
-const CHANGE_RETENTION_DAYS = 35;
+const CHANGE_RETENTION_DAYS = 366;
 
 function snapshot(proposal: SyncedProposal | AtlasProposal): ProposalSnapshot {
   const { id, title, stage, edition, status, repositoryUrl } = proposal;

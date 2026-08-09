@@ -13,17 +13,15 @@ import {
 import { fetchTc39Proposals } from './source.js';
 import { detectProposalChanges, mergeProposalChanges } from './sync.js';
 import {
-  translatePendingTitlesFromEnv,
-  type TitleTranslationRunResult,
-} from './title-translation.js';
-import {
   TRANSLATION_POLICY_VERSION,
-  translatePendingReadmesFromEnv,
+  articleSourceHash,
+  translatePendingProposalsFromEnv,
   type TranslationRunResult,
 } from './translation.js';
 
 export const DATASET_FILE_NAME = 'dataset.json';
 export const MANIFEST_FILE_NAME = 'manifest.json';
+const INITIAL_GENERATED_AT = new Date(0).toISOString();
 
 export interface GenerateDatasetOptions {
   outputDirectory: string;
@@ -34,54 +32,65 @@ export interface GenerateDatasetOptions {
 export interface GenerateDatasetResult {
   dataset: AtlasDataset;
   manifest: DatasetManifest;
-  translation: {
-    titles: TitleTranslationRunResult;
-    readmes: TranslationRunResult;
-  };
+  translation: TranslationRunResult;
 }
 
 function emptyDataset(): AtlasDataset {
   return {
     schemaVersion: DATASET_SCHEMA_VERSION,
-    generatedAt: new Date(0).toISOString(),
+    generatedAt: INITIAL_GENERATED_AT,
     proposals: [],
     changes: [],
   };
 }
 
+/** 识别旧版首次同步产生的全量 added 事件，下次同步时自动回到基线。 */
+function isUnanchoredSnapshot(dataset: AtlasDataset): boolean {
+  if (
+    dataset.proposals.length === 0 ||
+    dataset.changes.length !== dataset.proposals.length
+  ) {
+    return false;
+  }
+  const syncedAtById = new Map(
+    dataset.proposals.map((proposal) => [proposal.id, proposal.syncedAt]),
+  );
+  return dataset.changes.every(
+    (change) =>
+      change.kind === 'added' &&
+      change.before === null &&
+      syncedAtById.get(change.proposalId) === change.occurredAt,
+  );
+}
+
 function reuseTranslation(
   current: SyncedProposal,
   previous: AtlasProposal | undefined,
-): Pick<AtlasProposal, 'readmeZh' | 'translation'> {
+): Pick<AtlasProposal, 'titleZh' | 'readmeZh' | 'quickReview' | 'translation'> {
+  const readmeIsValid = current.readme.trim()
+    ? Boolean(previous?.readmeZh?.trim())
+    : previous?.readmeZh === '';
   if (
-    previous?.readmeHash === current.readmeHash &&
-    previous.readmeZh !== null &&
-    previous.translation?.sourceHash === current.readmeHash &&
+    previous?.titleZh?.trim() &&
+    readmeIsValid &&
+    previous.quickReview?.en.trim() &&
+    previous.quickReview.zh.trim() &&
+    previous.translation?.sourceHash === articleSourceHash(current) &&
     previous.translation.policyVersion === TRANSLATION_POLICY_VERSION
   ) {
     return {
+      titleZh: previous.titleZh,
       readmeZh: previous.readmeZh,
+      quickReview: previous.quickReview,
       translation: previous.translation,
     };
   }
-  return { readmeZh: null, translation: null };
-}
-
-function reuseTitleTranslation(
-  current: SyncedProposal,
-  previous: AtlasProposal | undefined,
-): Pick<AtlasProposal, 'titleZh' | 'titleTranslation'> {
-  if (
-    previous?.titleZh &&
-    previous.titleTranslation?.sourceHash ===
-      createHash('sha256').update(current.title).digest('hex')
-  ) {
-    return {
-      titleZh: previous.titleZh,
-      titleTranslation: previous.titleTranslation,
-    };
-  }
-  return { titleZh: null, titleTranslation: null };
+  return {
+    titleZh: null,
+    readmeZh: null,
+    quickReview: null,
+    translation: null,
+  };
 }
 
 export function mergePublishedProposals(
@@ -93,7 +102,6 @@ export function mergePublishedProposals(
   );
   return incoming.map((proposal) => ({
     ...proposal,
-    ...reuseTitleTranslation(proposal, previousById.get(proposal.id)),
     ...reuseTranslation(proposal, previousById.get(proposal.id)),
   }));
 }
@@ -114,16 +122,17 @@ export function buildAtlasDataset(
     readmeHash: proposal.readmeHash,
     syncedAt: proposal.syncedAt,
   }));
-  const currentChanges = detectProposalChanges(previous.proposals, synced);
+  const isInitial = previous.generatedAt === INITIAL_GENERATED_AT;
+  const currentChanges = isInitial
+    ? []
+    : detectProposalChanges(previous.proposals, synced);
+  const previousChanges =
+    isInitial || isUnanchoredSnapshot(previous) ? [] : previous.changes;
   return {
     schemaVersion: DATASET_SCHEMA_VERSION,
     generatedAt: generatedAt.toISOString(),
     proposals,
-    changes: mergeProposalChanges(
-      previous.changes,
-      currentChanges,
-      generatedAt,
-    ),
+    changes: mergeProposalChanges(previousChanges, currentChanges, generatedAt),
   };
 }
 
@@ -185,6 +194,16 @@ async function fetchPreviousDataset(url: string): Promise<AtlasDataset | null> {
   }
 }
 
+/** 选择最新的有效快照，避免线上旧数据覆盖仓库中刚完成的译文。 */
+export function selectPreviousDataset(
+  remote: AtlasDataset | null,
+  local: AtlasDataset | null,
+): AtlasDataset | null {
+  if (!remote) return local;
+  if (!local) return remote;
+  return remote.generatedAt >= local.generatedAt ? remote : local;
+}
+
 async function writeAtomically(path: string, contents: string): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   const temporaryPath = `${path}.${process.pid}.tmp`;
@@ -200,13 +219,12 @@ export async function generateAtlasDataset(
   const remote = options.previousUrl
     ? await fetchPreviousDataset(options.previousUrl)
     : null;
-  const previous =
-    remote ?? (await readLocalDataset(datasetPath)) ?? emptyDataset();
+  const local = await readLocalDataset(datasetPath);
+  const previous = selectPreviousDataset(remote, local) ?? emptyDataset();
   const incoming = await fetchTc39Proposals();
   const merged = mergePublishedProposals(previous.proposals, incoming);
-  const titled = await translatePendingTitlesFromEnv(merged, options.env);
-  const translated = await translatePendingReadmesFromEnv(
-    titled.proposals,
+  const translated = await translatePendingProposalsFromEnv(
+    merged,
     options.env,
   );
   const dataset = buildAtlasDataset(previous, translated.proposals);
@@ -221,6 +239,6 @@ export async function generateAtlasDataset(
   return {
     dataset,
     manifest,
-    translation: { titles: titled.result, readmes: translated.result },
+    translation: translated.result,
   };
 }

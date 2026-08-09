@@ -1,5 +1,5 @@
 {
-  "name": "web",
+  "name": "@tc39-atlas/web",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -13,10 +13,7 @@
     "preview": "rspress preview"
   },
   "dependencies": {
-    "@ant-design/icons": "^6.3.2",
-    "@tanstack/react-query": "^5.101.4",
     "@tc39-atlas/core": "workspace:*",
-    "antd": "^6.5.3",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
@@ -24,12 +21,7 @@
     "@eslint/js": "^10.0.1",
     "@rspress/core": "^2.0.19",
     "@types/node": "^24.13.3",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
-    "@unocss/postcss": "^66.7.5",
     "eslint": "^10.8.0",
-    "eslint-plugin-react-hooks": "^7.1.1",
-    "globals": "^17.7.0",
     "remark-gfm": "^4.0.1",
     "remark-parse": "^11.0.0",
     "remark-stringify": "^11.0.0",
@@ -39,7 +31,6 @@
     "typescript-eslint": "^8.65.0",
     "unified": "^11.0.5",
     "unist-util-visit": "^5.1.0",
-    "unocss": "^66.7.5",
     "vitest": "^4.1.10"
   }
 }

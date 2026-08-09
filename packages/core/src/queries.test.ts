@@ -11,12 +11,6 @@ const base: AtlasProposal = {
   id: 'proposal-a',
   title: 'Iterator Helpers',
   titleZh: '迭代器辅助方法',
-  titleTranslation: {
-    sourceHash: 'b'.repeat(64),
-    policyVersion: '1',
-    model: 'test',
-    translatedAt: '2026-08-08T00:00:00.000Z',
-  },
   stage: 3,
   edition: null,
   status: 'active',
@@ -25,6 +19,7 @@ const base: AtlasProposal = {
   readme: '# Iterator helpers',
   readmeHash: 'a'.repeat(64),
   readmeZh: '# 迭代器辅助方法',
+  quickReview: { en: 'Iterator helper review.', zh: '迭代器辅助方法审查。' },
   translation: {
     sourceHash: 'a'.repeat(64),
     policyVersion: '2',
@@ -50,10 +45,10 @@ describe('proposal queries', () => {
         id: 'proposal-c',
         title: 'Finished',
         titleZh: null,
-        titleTranslation: null,
         stage: 4,
         status: 'finished',
         readmeZh: null,
+        quickReview: null,
         translation: null,
       },
     ];

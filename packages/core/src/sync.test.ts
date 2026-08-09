@@ -24,8 +24,8 @@ function published(overrides: Partial<AtlasProposal> = {}): AtlasProposal {
   return {
     ...synced(),
     titleZh: null,
-    titleTranslation: null,
     readmeZh: null,
+    quickReview: null,
     translation: null,
     ...overrides,
   };
@@ -48,19 +48,24 @@ describe('proposal synchronization', () => {
     expect(changes[0]?.id).toContain('proposal-a:stage_changed');
   });
 
-  it('retains only the last 35 days and deduplicates events', () => {
+  it('retains one year of changes and deduplicates events', () => {
     const current = detectProposalChanges([], [synced()]);
+    const retained = current.map((item) => ({
+      ...item,
+      id: 'retained',
+      occurredAt: '2026-01-01T00:00:00.000Z',
+    }));
     const expired = current.map((item) => ({
       ...item,
       id: 'expired',
-      occurredAt: '2026-06-01T00:00:00.000Z',
+      occurredAt: '2025-08-06T00:00:00.000Z',
     }));
     expect(
       mergeProposalChanges(
-        [...current, ...expired],
+        [...current, ...retained, ...expired],
         current,
         new Date('2026-08-08T00:00:00.000Z'),
       ).map((item) => item.id),
-    ).toEqual([current[0]?.id]);
+    ).toEqual([current[0]?.id, 'retained']);
   });
 });

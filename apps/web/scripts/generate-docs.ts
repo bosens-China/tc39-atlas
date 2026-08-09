@@ -1,136 +1,151 @@
-import { mkdir, readFile, readdir, unlink, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  readFile,
+  readdir,
+  rm,
+  unlink,
+  writeFile,
+} from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
   parseAtlasDataset,
   type AtlasDataset,
-  type AtlasProposal,
+  type ProposalChange,
 } from '@tc39-atlas/core/model';
-import remarkGfm from 'remark-gfm';
-import remarkParse from 'remark-parse';
-import remarkStringify from 'remark-stringify';
-import { bundledLanguagesInfo } from 'shiki';
-import { unified } from 'unified';
-import { visit } from 'unist-util-visit';
 
-import { proposalRouteSegment } from '../src/proposalRoute.js';
+import {
+  proposalRoutePath,
+  proposalRouteRelativePath,
+  proposalRouteSegment,
+  type ProposalRouteContext,
+} from '../src/proposalRoute.js';
+import {
+  CHANGE_PERIODS,
+  changePeriodLabel,
+  filterChanges,
+  type ChangePeriod,
+} from './change-period.js';
+import {
+  copy,
+  formatDate,
+  LANGUAGES,
+  localizedTitle,
+  markdownText,
+  stageLabel,
+  STAGES,
+  statusLabel,
+  type Language,
+} from './doc-copy.js';
+import { GENERATED_NOTICE, proposalDocument } from './proposal-document.js';
+import { proposalSidebar } from './proposal-sidebar.js';
 
-const GENERATED_NOTICE =
-  '<!-- 此文件由 pnpm generate:docs 自动生成，请勿手工修改。 -->';
-const CODE_LANGUAGE_BY_ALIAS = new Map(
-  bundledLanguagesInfo.flatMap((language) =>
-    [language.id, ...(language.aliases ?? [])].map(
-      (alias) => [alias.toLowerCase(), language.id] as const,
-    ),
-  ),
-);
+export { normalizeReadme } from './proposal-document.js';
 
-export interface GenerateProposalDocsOptions {
-  datasetPath: string;
-  docsRoot: string;
-}
-
-function isRelativeUrl(url: string): boolean {
-  return !/^(?:[a-z][a-z\d+.-]*:|\/\/|#)/i.test(url);
-}
-
-function repositoryFileUrl(
-  repositoryUrl: string,
-  value: string,
-  kind: 'blob' | 'raw',
-): string {
-  if (value.startsWith('//')) return `https:${value}`;
-  if (!isRelativeUrl(value)) return value;
-  const repository = repositoryUrl.replace(/\/$/, '');
-  if (!repository.startsWith('https://github.com/')) return value;
-
-  const suffixIndex = value.search(/[?#]/);
-  const path = (suffixIndex === -1 ? value : value.slice(0, suffixIndex))
-    .replace(/^\.\//, '')
-    .replace(/^\/+/, '');
-  const suffix = suffixIndex === -1 ? '' : value.slice(suffixIndex);
-  return path ? `${repository}/${kind}/HEAD/${path}${suffix}` : value;
-}
-
-/** 使用 Markdown AST 规范化链接，避免生成页把仓库相对路径指向 Pages。 */
-export function normalizeReadme(
-  markdown: string,
-  repositoryUrl: string,
-): string {
-  if (!markdown.trim()) return '';
-  const processor = unified()
-    .use(remarkParse)
-    .use(remarkGfm)
-    .use(remarkStringify, { bullet: '-', listItemIndent: 'one' });
-  const tree = processor.parse(markdown);
-  const imageReferences = new Set<string>();
-
-  visit(tree, 'imageReference', (node) => {
-    imageReferences.add(node.identifier);
-  });
-  visit(tree, 'link', (node) => {
-    node.url = repositoryFileUrl(repositoryUrl, node.url, 'blob');
-  });
-  visit(tree, 'image', (node) => {
-    node.url = repositoryFileUrl(repositoryUrl, node.url, 'raw');
-  });
-  visit(tree, 'definition', (node) => {
-    node.url = repositoryFileUrl(
-      repositoryUrl,
-      node.url,
-      imageReferences.has(node.identifier) ? 'raw' : 'blob',
-    );
-  });
-  visit(tree, 'code', (node) => {
-    if (!node.lang) return;
-    const language = node.lang.replaceAll('`', '').trim().toLowerCase();
-    node.lang = CODE_LANGUAGE_BY_ALIAS.get(language) ?? null;
-  });
-
-  return processor.stringify(tree);
-}
-
-function frontmatter(proposal: AtlasProposal, language: 'zh' | 'en'): string {
-  const localizedTitle =
-    language === 'zh' ? (proposal.titleZh ?? proposal.title) : proposal.title;
-  const localizedDescription =
-    language === 'zh'
-      ? `《${localizedTitle}》TC39 提案的中文译文、阶段和版本信息。`
-      : `${proposal.title}: TC39 proposal text, stage, and edition metadata.`;
-  const value = (input: unknown) => JSON.stringify(input);
-
+function documentFrontmatter(title: string, description: string): string {
   return [
     '---',
-    `title: ${value(localizedTitle)}`,
-    `description: ${value(localizedDescription)}`,
-    'pageType: doc-wide',
-    'sidebar: false',
-    'footer: false',
-    `proposalId: ${value(proposal.id)}`,
-    `proposalTitle: ${value(proposal.title)}`,
-    `proposalTitleZh: ${value(proposal.titleZh)}`,
-    `proposalStage: ${value(proposal.stage)}`,
-    `proposalEdition: ${value(proposal.edition)}`,
-    `proposalStatus: ${value(proposal.status)}`,
-    `proposalRepositoryUrl: ${value(proposal.repositoryUrl)}`,
-    `proposalSyncedAt: ${value(proposal.syncedAt)}`,
-    `proposalTranslationAvailable: ${value(Boolean(proposal.readmeZh?.trim()))}`,
+    `title: ${JSON.stringify(title)}`,
+    `description: ${JSON.stringify(description)}`,
     '---',
   ].join('\n');
 }
 
-function proposalBody(proposal: AtlasProposal, language: 'zh' | 'en'): string {
-  const source = language === 'zh' ? proposal.readmeZh : proposal.readme;
-  if (source?.trim()) {
-    return normalizeReadme(source, proposal.repositoryUrl);
-  }
-  return language === 'zh'
-    ? '> 暂无中文译文，请使用页面上方的 English 入口查看英文原文。\n'
-    : '> The upstream repository does not provide a README.\n';
+function proposalIndex(dataset: AtlasDataset, language: Language): string {
+  const value = copy[language];
+  const sections = STAGES.map((stage) => {
+    const proposals = dataset.proposals
+      .filter((proposal) => proposal.stage === stage)
+      .sort((left, right) =>
+        localizedTitle(left, language).localeCompare(
+          localizedTitle(right, language),
+        ),
+      );
+    if (!proposals.length) return '';
+    const rows = proposals.map((proposal) => {
+      const title = markdownText(localizedTitle(proposal, language));
+      const edition = proposal.edition ? `ES${proposal.edition}` : '—';
+      return `| [${title}](./${proposalRouteSegment(proposal.id)}) | ${statusLabel(proposal.status, language)} | ${edition} |`;
+    });
+    return [
+      `## ${stageLabel(stage, language)} · ${proposals.length}`,
+      '',
+      `| ${value.title} | ${value.status} | ${value.edition} |`,
+      '| --- | --- | --- |',
+      ...rows,
+    ].join('\n');
+  }).filter(Boolean);
+
+  return [
+    documentFrontmatter(value.proposals, value.proposalsDescription),
+    '',
+    GENERATED_NOTICE,
+    '',
+    `# ${value.proposals}`,
+    '',
+    `:::tip\n${value.indexTip}\n:::`,
+    '',
+    sections.length
+      ? sections.join('\n\n')
+      : `:::warning\n${value.emptyProposals}\n:::`,
+    '',
+  ].join('\n');
 }
 
-async function cleanGeneratedMarkdown(directory: string, docsRoot: string) {
+function changeLabel(change: ProposalChange, language: Language): string {
+  const labels: Record<ProposalChange['kind'], readonly [string, string]> = {
+    added: ['新增', 'Added'],
+    stage_changed: ['阶段变化', 'Stage changed'],
+    finished: ['完成', 'Finished'],
+    inactive: ['转为不活跃', 'Became inactive'],
+    withdrawn: ['撤回', 'Withdrawn'],
+  };
+  const label = labels[change.kind][language === 'zh' ? 0 : 1];
+  if (change.kind !== 'stage_changed' || !change.before) return label;
+  return `${label}: ${stageLabel(change.before.stage, language)} → ${stageLabel(change.after.stage, language)}`;
+}
+
+function changesIndex(
+  dataset: AtlasDataset,
+  language: Language,
+  period: ChangePeriod,
+): string {
+  const value = copy[language];
+  const title = changePeriodLabel(period, language);
+  const rows = filterChanges(dataset.changes, dataset.generatedAt, period)
+    .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
+    .map((change) => {
+      const title = markdownText(change.after.title);
+      const path = proposalRoutePath(change.proposalId, language);
+      return `| ${formatDate(change.occurredAt, language)} | ${changeLabel(change, language)} | [${title}](${path}) |`;
+    });
+  const content = rows.length
+    ? [
+        `| ${value.occurredAt} | ${value.event} | ${value.title} |`,
+        '| --- | --- | --- |',
+        ...rows,
+      ].join('\n')
+    : `:::info\n${value.emptyChanges}\n:::`;
+  return [
+    documentFrontmatter(title, value.changesDescription),
+    '',
+    GENERATED_NOTICE,
+    '',
+    `# ${title}`,
+    '',
+    `:::info\n${language === 'zh' ? `以数据集生成时间 ${formatDate(dataset.generatedAt, language)} 的 UTC 日历为准。` : `Calculated from the UTC calendar at dataset generation time, ${formatDate(dataset.generatedAt, language)}.`}\n:::`,
+    '',
+    content,
+    '',
+  ].join('\n');
+}
+
+async function cleanGeneratedMarkdown(
+  directory: string,
+  docsRoot: string,
+  generatedDirectories: readonly string[] = [],
+) {
   const resolvedRoot = `${resolve(docsRoot)}${sep}`;
   const resolvedDirectory = resolve(directory);
   if (!`${resolvedDirectory}${sep}`.startsWith(resolvedRoot)) {
@@ -138,39 +153,73 @@ async function cleanGeneratedMarkdown(directory: string, docsRoot: string) {
   }
   await mkdir(resolvedDirectory, { recursive: true });
   const entries = await readdir(resolvedDirectory, { withFileTypes: true });
-  await Promise.all(
-    entries
+  await Promise.all([
+    ...entries
       .filter((entry) => entry.isFile() && entry.name.endsWith('.md'))
       .map((entry) => unlink(join(resolvedDirectory, entry.name))),
-  );
+    ...generatedDirectories.map((name) =>
+      rm(join(resolvedDirectory, name), { recursive: true, force: true }),
+    ),
+  ]);
 }
 
+export interface GenerateProposalDocsOptions {
+  datasetPath: string;
+  docsRoot: string;
+}
+
+/** 一次生成正文与导航，避免页面和侧边栏维护两份提案顺序。 */
 export async function generateProposalDocs(
   dataset: AtlasDataset,
   docsRoot: string,
 ): Promise<number> {
-  const directories = {
-    zh: join(docsRoot, 'zh', 'proposals'),
-    en: join(docsRoot, 'en', 'proposals'),
-  } as const;
-  await Promise.all(
-    Object.values(directories).map((directory) =>
-      cleanGeneratedMarkdown(directory, docsRoot),
-    ),
-  );
+  for (const language of LANGUAGES) {
+    const proposalsDirectory = join(docsRoot, language, 'proposals');
+    const changesDirectory = join(docsRoot, language, 'changes');
+    await cleanGeneratedMarkdown(proposalsDirectory, docsRoot, [
+      'year',
+      'stage',
+    ]);
+    await cleanGeneratedMarkdown(changesDirectory, docsRoot);
+    await mkdir(changesDirectory, { recursive: true });
+    await Promise.all([
+      writeFile(
+        join(proposalsDirectory, 'index.md'),
+        proposalIndex(dataset, language),
+      ),
+      writeFile(
+        join(proposalsDirectory, '_meta.json'),
+        proposalSidebar(dataset, language),
+      ),
+      writeFile(
+        join(changesDirectory, 'index.md'),
+        changesIndex(dataset, language, 'week'),
+      ),
+      ...CHANGE_PERIODS.map((period) =>
+        writeFile(
+          join(changesDirectory, `${period}.md`),
+          changesIndex(dataset, language, period),
+        ),
+      ),
+    ]);
 
-  for (const proposal of dataset.proposals) {
-    const segment = proposalRouteSegment(proposal.id);
-    for (const language of ['zh', 'en'] as const) {
-      const output = [
-        frontmatter(proposal, language),
-        '',
-        GENERATED_NOTICE,
-        '',
-        proposalBody(proposal, language).trimEnd(),
-        '',
-      ].join('\n');
-      await writeFile(join(directories[language], `${segment}.md`), output);
+    for (const proposal of dataset.proposals) {
+      const contexts: readonly (ProposalRouteContext | undefined)[] = [
+        undefined,
+        { kind: 'year', value: proposal.edition },
+        { kind: 'stage', value: proposal.stage },
+      ];
+      for (const context of contexts) {
+        const outputPath = join(
+          proposalsDirectory,
+          `${proposalRouteRelativePath(proposal.id, context)}.md`,
+        );
+        await mkdir(dirname(outputPath), { recursive: true });
+        await writeFile(
+          outputPath,
+          proposalDocument(proposal, language, context),
+        );
+      }
     }
   }
   return dataset.proposals.length;
@@ -188,11 +237,9 @@ export async function generateProposalDocsFromFile(
 const currentFile = fileURLToPath(import.meta.url);
 if (process.argv[1] && resolve(process.argv[1]) === resolve(currentFile)) {
   const webRoot = resolve(dirname(currentFile), '..');
-  const datasetPath = resolve(webRoot, 'docs/public/data/dataset.json');
-  const docsRoot = resolve(webRoot, 'docs');
   const proposals = await generateProposalDocsFromFile({
-    datasetPath,
-    docsRoot,
+    datasetPath: resolve(webRoot, 'docs/public/data/dataset.json'),
+    docsRoot: resolve(webRoot, 'docs'),
   });
   console.log(JSON.stringify({ event: 'proposal_docs_generated', proposals }));
 }

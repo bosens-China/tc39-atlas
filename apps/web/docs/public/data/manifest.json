@@ -1,10 +1,10 @@
 {
-  "schemaVersion": 2,
-  "revision": "f2f103b89858394a682a4cff096e4e016b11dd100fae32950b0d606f3aa1f70a",
-  "generatedAt": "1970-01-01T00:00:00.000Z",
+  "schemaVersion": 3,
+  "revision": "91bd4ab3b709b19403a300c1567f17edf1cb0e6a460c53f6f3fb0eab40b2270c",
+  "generatedAt": "2026-08-09T15:59:17.918Z",
   "dataset": {
-    "path": "dataset.json",
-    "sha256": "f2f103b89858394a682a4cff096e4e016b11dd100fae32950b0d606f3aa1f70a",
-    "bytes": 106
+    "url": "dataset.json",
+    "sha256": "91bd4ab3b709b19403a300c1567f17edf1cb0e6a460c53f6f3fb0eab40b2270c",
+    "bytes": 6191765
   }
 }

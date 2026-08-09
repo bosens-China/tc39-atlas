@@ -5,6 +5,7 @@ export {
   createDatasetManifest,
   generateAtlasDataset,
   mergePublishedProposals,
+  selectPreviousDataset,
   serializeDataset,
 } from './dataset.js';
 export {
@@ -17,6 +18,7 @@ export {
   proposalChangeKindSchema,
   proposalChangeKinds,
   proposalChangeSchema,
+  quickReviewSchema,
   proposalSnapshotSchema,
   proposalStageSchema,
   proposalStages,
@@ -32,6 +34,7 @@ export {
   type ProposalChangeKind,
   type ProposalDetail,
   type ProposalFilter,
+  type QuickReview,
   type ProposalSnapshot,
   type ProposalStage,
   type ProposalStatus,
@@ -48,19 +51,12 @@ export { fetchTc39Proposals } from './source.js';
 export { detectProposalChanges, mergeProposalChanges } from './sync.js';
 export {
   TRANSLATION_POLICY_VERSION,
+  articleSourceHash,
   isRetryableTranslationError,
-  translatePendingReadmes,
-  translatePendingReadmesFromEnv,
-  type ReadmeTranslator,
+  translatePendingProposals,
+  translatePendingProposalsFromEnv,
+  type ProposalTranslator,
   type TranslationOutput,
   type TranslationRun,
   type TranslationRunResult,
 } from './translation.js';
-export {
-  seedManualTitleTranslations,
-  TITLE_TRANSLATION_POLICY_VERSION,
-  titleSourceHash,
-  translatePendingTitlesFromEnv,
-  type TitleTranslationRun,
-  type TitleTranslationRunResult,
-} from './title-translation.js';

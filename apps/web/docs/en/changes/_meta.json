@@ -1,0 +1,7 @@
+[
+  { "type": "file", "name": "today", "label": "Today" },
+  { "type": "file", "name": "week", "label": "This week" },
+  { "type": "file", "name": "month", "label": "This month" },
+  { "type": "file", "name": "quarter", "label": "This quarter" },
+  { "type": "file", "name": "year", "label": "This year" }
+]

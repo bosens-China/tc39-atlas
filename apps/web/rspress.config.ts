@@ -14,7 +14,6 @@ export default defineConfig({
   icon: '/favicon.png',
   logo: '/favicon.png',
   logoText: 'TC39 Atlas',
-  globalStyles: join(webRoot, 'src/index.css'),
   locales: [
     {
       lang: 'zh',
@@ -40,7 +39,8 @@ export default defineConfig({
     ],
   },
   markdown: {
-    link: { checkDeadLinks: true },
+    // 站内链接已经显式区分中文根路径与 /en，避免 locale 自动补前缀形成 /en/en。
+    link: { checkDeadLinks: true, autoPrefix: false },
     image: { checkDeadImages: true },
   },
 });

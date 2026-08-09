@@ -1,6 +1,6 @@
 import * as z from 'zod/v4';
 
-export const DATASET_SCHEMA_VERSION = 2;
+export const DATASET_SCHEMA_VERSION = 3;
 export const proposalStages = [0, 1, 2, 2.7, 3, 4] as const;
 export const proposalStatuses = [
   'active',
@@ -43,7 +43,20 @@ export const translationMetadataSchema = z.object({
   translatedAt: z.string().datetime(),
 });
 
+export const quickReviewSchema = z.object({
+  en: z.string().trim().min(1),
+  zh: z.string().trim().min(1),
+});
+
 export const atlasProposalSchema = proposalSummarySchema.extend({
+  readme: z.string(),
+  readmeHash: z.string().regex(/^[a-f0-9]{64}$/),
+  readmeZh: z.string().nullable(),
+  quickReview: quickReviewSchema.nullable(),
+  translation: translationMetadataSchema.nullable(),
+});
+
+const legacyAtlasProposalSchema = proposalSummarySchema.extend({
   titleTranslation: translationMetadataSchema.nullable(),
   readme: z.string(),
   readmeHash: z.string().regex(/^[a-f0-9]{64}$/),
@@ -67,6 +80,13 @@ export const atlasDatasetSchema = z.object({
   changes: z.array(proposalChangeSchema),
 });
 
+const legacyAtlasDatasetSchema = z.object({
+  schemaVersion: z.literal(2),
+  generatedAt: z.string().datetime(),
+  proposals: z.array(legacyAtlasProposalSchema),
+  changes: z.array(proposalChangeSchema),
+});
+
 export const datasetManifestSchema = z.object({
   schemaVersion: z.literal(DATASET_SCHEMA_VERSION),
   revision: z.string().regex(/^[a-f0-9]{64}$/),
@@ -84,6 +104,7 @@ export type ProposalChangeKind = z.infer<typeof proposalChangeKindSchema>;
 export type ProposalSnapshot = z.infer<typeof proposalSnapshotSchema>;
 export type ProposalSummary = z.infer<typeof proposalSummarySchema>;
 export type TranslationMetadata = z.infer<typeof translationMetadataSchema>;
+export type QuickReview = z.infer<typeof quickReviewSchema>;
 export type AtlasProposal = z.infer<typeof atlasProposalSchema>;
 export type ProposalDetail = AtlasProposal;
 export type ProposalChange = z.infer<typeof proposalChangeSchema>;
@@ -108,7 +129,18 @@ export interface SyncedProposal extends ProposalSnapshot {
 }
 
 export function parseAtlasDataset(value: unknown): AtlasDataset {
-  return atlasDatasetSchema.parse(value);
+  const current = atlasDatasetSchema.safeParse(value);
+  if (current.success) return current.data;
+
+  const legacy = legacyAtlasDatasetSchema.parse(value);
+  return {
+    schemaVersion: DATASET_SCHEMA_VERSION,
+    generatedAt: legacy.generatedAt,
+    proposals: legacy.proposals.map((proposal) =>
+      atlasProposalSchema.parse({ ...proposal, quickReview: null }),
+    ),
+    changes: legacy.changes,
+  };
 }
 
 export function parseDatasetManifest(value: unknown): DatasetManifest {

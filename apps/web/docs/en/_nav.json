@@ -1,6 +1,18 @@
 [
-  { "text": "Home", "link": "/en/" },
-  { "text": "Proposals", "link": "/en/proposals/" },
-  { "text": "Changes", "link": "/en/changes/" },
-  { "text": "About", "link": "/en/about/data" }
+  {
+    "text": "Weekly changes",
+    "link": "/changes/week",
+    "activeMatch": "^/en/changes/"
+  },
+  {
+    "text": "All proposals",
+    "link": "/proposals/",
+    "activeMatch": "^/en/proposals/"
+  },
+  {
+    "text": "AI Agent",
+    "link": "/agent/skills",
+    "activeMatch": "^/en/agent/"
+  },
+  { "text": "About", "link": "/about/", "activeMatch": "^/en/about/" }
 ]

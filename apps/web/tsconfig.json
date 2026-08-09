@@ -1,10 +1,9 @@
 {
   "compilerOptions": {
     "target": "ES2023",
-    "lib": ["ES2023", "DOM"],
+    "lib": ["ES2023"],
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "jsx": "react-jsx",
     "strict": true,
     "noEmit": true,
     "noUnusedLocals": true,
@@ -13,20 +12,7 @@
     "verbatimModuleSyntax": true,
     "allowImportingTsExtensions": true,
     "skipLibCheck": true,
-    "types": ["node", "vitest/globals"],
-    "paths": {
-      "@/*": ["./src/*"]
-    }
+    "types": ["node", "vitest/globals"]
   },
-  "include": [
-    "docs/**/*.ts",
-    "docs/**/*.tsx",
-    "scripts/**/*.ts",
-    "src/**/*.ts",
-    "src/**/*.tsx",
-    "theme/**/*.ts",
-    "theme/**/*.tsx",
-    "rspress.config.ts",
-    "uno.config.ts"
-  ]
+  "include": ["scripts/**/*.ts", "src/**/*.ts", "rspress.config.ts"]
 }

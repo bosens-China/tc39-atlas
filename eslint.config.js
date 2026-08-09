@@ -7,6 +7,7 @@ export default defineConfig(
   globalIgnores([
     '.agents/**',
     '**/dist/**',
+    '**/doc_build/**',
     '**/node_modules/**',
     'packages/core/drizzle/**',
   ]),

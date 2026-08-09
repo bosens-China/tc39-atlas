@@ -1,0 +1,7 @@
+[
+  { "type": "file", "name": "today", "label": "今日变化" },
+  { "type": "file", "name": "week", "label": "本周变化" },
+  { "type": "file", "name": "month", "label": "本月变化" },
+  { "type": "file", "name": "quarter", "label": "本季度变化" },
+  { "type": "file", "name": "year", "label": "本年变化" }
+]
