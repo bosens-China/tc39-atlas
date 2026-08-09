@@ -31,6 +31,7 @@ const jsonSummarySchema = jsonSnapshotSchema.extend({
 const jsonDetailSchema = jsonSummarySchema.extend({
   readme: z.string(),
   readme_zh: z.string().nullable(),
+  quick_review: z.object({ en: z.string(), zh: z.string() }).nullable(),
 });
 
 function jsonContent(value: unknown) {
@@ -65,7 +66,7 @@ export function createTc39McpServer(store: DatasetStore): McpServer {
     {
       title: 'Search TC39 proposals',
       description:
-        'Search the locally cached current TC39 proposal dataset by stage, ECMAScript edition, status, and keywords. Keywords cover ID, English or Chinese titles, and English or Chinese README content.',
+        'Search the locally cached current TC39 proposal dataset by stage, ECMAScript edition, status, and keywords. Keywords cover IDs, titles, READMEs, and bilingual quick reviews.',
       inputSchema: z.object({
         stages: z
           .array(proposalStageSchema)
@@ -148,7 +149,7 @@ export function createTc39McpServer(store: DatasetStore): McpServer {
           .boolean()
           .default(true)
           .describe(
-            'Include English README and available Chinese translation.',
+            'Include English README, Chinese translation, and bilingual quick review.',
           ),
       }),
       outputSchema: z.object({
@@ -167,7 +168,11 @@ export function createTc39McpServer(store: DatasetStore): McpServer {
       const proposals = rows.map((proposal) => ({
         ...jsonSummary(proposal),
         ...('readme' in proposal
-          ? { readme: proposal.readme, readme_zh: proposal.readmeZh }
+          ? {
+              readme: proposal.readme,
+              readme_zh: proposal.readmeZh,
+              quick_review: proposal.quickReview,
+            }
           : {}),
       }));
       const found = new Set(proposals.map((proposal) => proposal.id));
@@ -242,14 +247,18 @@ function registerResources(server: McpServer, store: DatasetStore): void {
   resource(
     'TC39 proposal',
     'tc39://proposals/{id}',
-    'Current proposal metadata and repository README.',
+    'Current proposal metadata, repository README, translation, and bilingual quick review.',
     (id) => {
       const [proposal] = getProposals(store.dataset.proposals, [id], true);
       if (!proposal) throw new ResourceNotFoundError(`tc39://proposals/${id}`);
       return {
         ...jsonSummary(proposal),
         ...('readme' in proposal
-          ? { readme: proposal.readme, readme_zh: proposal.readmeZh }
+          ? {
+              readme: proposal.readme,
+              readme_zh: proposal.readmeZh,
+              quick_review: proposal.quickReview,
+            }
           : {}),
       };
     },

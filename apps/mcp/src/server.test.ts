@@ -5,19 +5,13 @@ import { DatasetStore } from './cache.js';
 import { createTc39McpServer } from './server.js';
 
 const dataset = {
-  schemaVersion: 2 as const,
+  schemaVersion: 3 as const,
   generatedAt: '2026-08-08T00:00:00.000Z',
   proposals: [
     {
       id: 'proposal-a',
       title: 'Proposal A',
       titleZh: '提案 A',
-      titleTranslation: {
-        sourceHash: 'b'.repeat(64),
-        policyVersion: '1',
-        model: 'test',
-        translatedAt: '2026-08-08T00:00:00.000Z',
-      },
       stage: 3 as const,
       edition: null,
       status: 'active' as const,
@@ -26,6 +20,10 @@ const dataset = {
       readme: '# Proposal A',
       readmeHash: 'a'.repeat(64),
       readmeZh: '# 提案 A',
+      quickReview: {
+        en: 'Proposal A adds an example capability.',
+        zh: '提案 A 增加了一项示例能力。',
+      },
       translation: {
         sourceHash: 'a'.repeat(64),
         policyVersion: '2',
@@ -84,7 +82,13 @@ describe('local MCP contract', () => {
       proposals: [{ id: 'proposal-a', title_zh: '提案 A' }],
     });
     expect(detail.structuredContent).toMatchObject({
-      proposals: [{ id: 'proposal-a', readme_zh: '# 提案 A' }],
+      proposals: [
+        {
+          id: 'proposal-a',
+          readme_zh: '# 提案 A',
+          quick_review: { en: 'Proposal A adds an example capability.' },
+        },
+      ],
       missing_ids: ['missing'],
     });
   });

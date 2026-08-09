@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -11,14 +11,13 @@ const directories: string[] = [];
 
 function publishedDataset(id: string) {
   return {
-    schemaVersion: 2 as const,
+    schemaVersion: 3 as const,
     generatedAt: '2026-08-08T00:00:00.000Z',
     proposals: [
       {
         id,
         title: `Proposal ${id}`,
         titleZh: null,
-        titleTranslation: null,
         stage: 2 as const,
         edition: null,
         status: 'active' as const,
@@ -27,6 +26,7 @@ function publishedDataset(id: string) {
         readme: `# ${id}`,
         readmeHash: 'a'.repeat(64),
         readmeZh: null,
+        quickReview: null,
         translation: null,
       },
     ],
@@ -38,7 +38,7 @@ function responses(id: string): [Response, Response] {
   const datasetText = `${JSON.stringify(publishedDataset(id), null, 2)}\n`;
   const digest = createHash('sha256').update(datasetText).digest('hex');
   const manifest = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     revision: digest,
     generatedAt: '2026-08-08T00:00:00.000Z',
     dataset: {
@@ -59,6 +59,15 @@ async function temporaryDirectory(): Promise<string> {
   return directory;
 }
 
+async function writeSnapshot(directory: string, id: string): Promise<void> {
+  const [manifest, dataset] = responses(id);
+  await mkdir(directory, { recursive: true });
+  await Promise.all([
+    writeFile(join(directory, 'manifest.json'), await manifest.text()),
+    writeFile(join(directory, 'dataset.json'), await dataset.text()),
+  ]);
+}
+
 afterEach(async () => {
   vi.restoreAllMocks();
   await Promise.all(
@@ -69,6 +78,27 @@ afterEach(async () => {
 });
 
 describe('dataset cache', () => {
+  it('starts from the bundled snapshot and persists it before refreshing', async () => {
+    const cacheDirectory = await temporaryDirectory();
+    const bundledDirectory = await temporaryDirectory();
+    await writeSnapshot(bundledDirectory, 'proposal-bundled');
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const opened = await openDatasetStore({
+      cacheDirectory,
+      bundledDirectory,
+      manifestUrl: 'https://example.test/data/manifest.json',
+      fetcher: vi.fn<typeof fetch>().mockRejectedValue(new Error('offline')),
+    });
+
+    expect(opened.store.dataset.proposals[0]?.id).toBe('proposal-bundled');
+    await expect(opened.refresh).resolves.toBe('current');
+    const cached = JSON.parse(
+      await readFile(join(cacheDirectory, 'dataset.json'), 'utf8'),
+    ) as ReturnType<typeof publishedDataset>;
+    expect(cached.proposals[0]?.id).toBe('proposal-bundled');
+  });
+
   it('blocks for the first valid download', async () => {
     const directory = await temporaryDirectory();
     const [manifest, dataset] = responses('proposal-a');

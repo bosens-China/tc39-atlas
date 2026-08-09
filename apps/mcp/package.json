@@ -33,7 +33,7 @@
     "registry": "https://registry.npmjs.org/"
   },
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown && tsx scripts/copy-dataset.ts",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.mjs",
     "test": "vitest run",

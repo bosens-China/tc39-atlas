@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 
 import {
@@ -39,6 +40,7 @@ export class DatasetStore {
 export interface OpenDatasetOptions {
   manifestUrl?: string;
   cacheDirectory?: string;
+  bundledDirectory?: string | null;
   env?: NodeJS.ProcessEnv;
   fetcher?: typeof fetch;
 }
@@ -51,6 +53,8 @@ export interface OpenDatasetResult {
 interface CachedDataset {
   dataset: AtlasDataset;
   manifest: DatasetManifest;
+  datasetText: string;
+  manifestText: string;
 }
 
 function cacheDirectory(env: NodeJS.ProcessEnv): string {
@@ -80,7 +84,10 @@ function isMissingFile(error: unknown): boolean {
   );
 }
 
-async function readCache(directory: string): Promise<CachedDataset | null> {
+async function readSnapshot(
+  directory: string,
+  invalidEvent: string,
+): Promise<CachedDataset | null> {
   try {
     const [manifestText, datasetText] = await Promise.all([
       readFile(join(directory, 'manifest.json'), 'utf8'),
@@ -96,14 +103,27 @@ async function readCache(directory: string): Promise<CachedDataset | null> {
     return {
       manifest,
       dataset: parseAtlasDataset(JSON.parse(datasetText) as unknown),
+      datasetText,
+      manifestText,
     };
   } catch (error: unknown) {
     if (isMissingFile(error)) return null;
-    log('warn', 'dataset_cache_invalid', {
+    log('warn', invalidEvent, {
       error: error instanceof Error ? error.message : String(error),
     });
     return null;
   }
+}
+
+async function persistSnapshot(
+  directory: string,
+  snapshot: CachedDataset,
+): Promise<void> {
+  await writeAtomically(join(directory, 'dataset.json'), snapshot.datasetText);
+  await writeAtomically(
+    join(directory, 'manifest.json'),
+    snapshot.manifestText,
+  );
 }
 
 async function writeAtomically(path: string, value: string): Promise<void> {
@@ -174,9 +194,20 @@ export async function openDatasetStore(
     options.manifestUrl ?? env.TC39_ATLAS_MANIFEST_URL ?? DEFAULT_MANIFEST_URL,
   );
   const fetcher = options.fetcher ?? fetch;
-  const cached = await readCache(directory);
-  const store = cached
-    ? new DatasetStore(cached.dataset, cached.manifest.revision)
+  const cached = await readSnapshot(directory, 'dataset_cache_invalid');
+  const bundledDirectory =
+    options.bundledDirectory === null
+      ? null
+      : (options.bundledDirectory ??
+        fileURLToPath(new URL('./data/', import.meta.url)));
+  const bundled =
+    !cached && bundledDirectory
+      ? await readSnapshot(bundledDirectory, 'bundled_dataset_invalid')
+      : null;
+  if (!cached && bundled) await persistSnapshot(directory, bundled);
+  const initial = cached ?? bundled;
+  const store = initial
+    ? new DatasetStore(initial.dataset, initial.manifest.revision)
     : null;
   const update = refreshDataset(store, directory, manifestUrl, fetcher);
 
