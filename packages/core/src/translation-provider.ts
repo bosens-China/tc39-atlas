@@ -12,10 +12,8 @@ import type {
 
 const DEFAULT_BASE_URL = 'https://api.deepseek.com';
 const DEFAULT_MODEL = 'deepseek-v4-flash';
-const OPENAI_DEFAULT_MODEL = 'gpt-5.6-luna';
 const DEFAULT_CONCURRENCY = 10;
 const DEFAULT_REQUEST_TIMEOUT_MS = 120_000;
-const CHAT_COMPLETION_MODELS = new Set(['deepseek-v4-pro']);
 
 export const TRANSLATION_POLICY_VERSION = '4';
 
@@ -69,20 +67,15 @@ interface TranslationProfile {
   model: string;
 }
 
+function usesChatCompletions(model: string): boolean {
+  return model !== DEFAULT_MODEL;
+}
+
 function translationProfile(env: NodeJS.ProcessEnv): TranslationProfile {
-  const useOpenAIDefaults = Boolean(
-    env.OPENAI_API_KEY && !env.TRANSLATION_API_KEY && !env.DEEPSEEK_API_KEY,
-  );
-  const baseURL =
-    env.TRANSLATION_BASE_URL ??
-    env.DEEPSEEK_BASE_URL ??
-    env.OPENAI_BASE_URL ??
-    (useOpenAIDefaults ? undefined : DEFAULT_BASE_URL);
+  const baseURL = env.TRANSLATION_BASE_URL || DEFAULT_BASE_URL;
   return {
-    ...(baseURL ? { baseURL } : {}),
-    model:
-      env.TRANSLATION_MODEL ||
-      (useOpenAIDefaults ? OPENAI_DEFAULT_MODEL : DEFAULT_MODEL),
+    baseURL,
+    model: env.TRANSLATION_MODEL || DEFAULT_MODEL,
   };
 }
 
@@ -91,7 +84,7 @@ export function translationFingerprint(
   env: NodeJS.ProcessEnv = process.env,
 ): string {
   const profile = translationProfile(env);
-  const requestMode = CHAT_COMPLETION_MODELS.has(profile.model)
+  const requestMode = usesChatCompletions(profile.model)
     ? { api: 'chat.completions', responseFormat: 'json_object' }
     : {
         api: 'responses',
@@ -133,8 +126,7 @@ function positiveInteger(
 export function translationConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): TranslationConfig | null {
-  const apiKey =
-    env.TRANSLATION_API_KEY ?? env.DEEPSEEK_API_KEY ?? env.OPENAI_API_KEY;
+  const apiKey = env.DEEPSEEK_API_KEY;
   if (!apiKey) return null;
   const profile = translationProfile(env);
   const maxItems = env.TRANSLATION_MAX_ITEMS
@@ -225,7 +217,7 @@ export function createProposalTranslator(
     let content: string;
     let model: string;
     let usage: TranslationOutput['usage'];
-    if (CHAT_COMPLETION_MODELS.has(config.model)) {
+    if (usesChatCompletions(config.model)) {
       const response = await client.chat.completions.create({
         model: config.model,
         messages: [

@@ -25,8 +25,8 @@ features:
     details: Reach the same proposal through its ECMAScript edition or current TC39 stage.
     icon: '🧭'
     link: /en/proposals/
-  - title: Machine-readable docs
-    details: Give AI agents the same TC39 dataset through llms.txt and on-demand Markdown pages.
+  - title: Connect an AI agent
+    details: Install the ECMAScript modernization Skill and read TC39 data through llms.txt and on-demand Markdown pages.
     icon: '🤖'
-    link: /en/llms.txt
+    link: /en/agent/
 ---

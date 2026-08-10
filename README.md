@@ -14,7 +14,7 @@ npx skills add https://github.com/bosens-China/tc39-atlas --skill modernize-ecma
 
 Skill 会自动识别单仓库或 monorepo 中的 TypeScript、构建工具、Node、浏览器和部署基线，结合 TC39 Stage 与 ECMAScript 版本选择当前项目安全可用的最新稳定能力。不确定目标或需要提高兼容基线时会先询问，并在修改前后汇报采用范围与验证结果。
 
-文档站同时发布中文根 [`llms.txt`](https://bosens-china.github.io/tc39-atlas/llms.txt) 和英文 [`en/llms.txt`](https://bosens-china.github.io/tc39-atlas/en/llms.txt)，供 Agent 按需发现并读取提案 Markdown。
+文档站发布 [`llms.txt`](https://bosens-china.github.io/tc39-atlas/llms.txt) 作为 Agent 索引，Agent 再按任务需要读取一个或多个提案 Markdown 页面。
 
 ## 本地开发
 
@@ -26,7 +26,7 @@ pnpm sync
 pnpm dev:web
 ```
 
-`pnpm sync` 会自动读取仓库根目录中被 Git 忽略的 `.env`，抓取 TC39 Dataset 与各提案 README，并更新 `apps/web/docs/public/data/`。启动 Web 时，Rspress 会根据这份数据生成中英文提案文档。每篇提案默认通过 DeepSeek `deepseek-v4-flash` 的一次结构化请求生成中文标题、完整 README 译文和中英文快速审查，并以 10 篇为默认并发数。单次 AI 请求超时为 120 秒，暂时性错误最多重试 2 次。标题与 README 的联合源哈希、翻译策略以及由模型、端点、提示词、输出 Schema 和关键请求参数生成的翻译器指纹均未变化时，直接复用整篇结果。未设置 `DEEPSEEK_API_KEY` 时只跳过待翻译内容，不影响英文数据；存在单篇翻译失败时不会覆盖上一份数据集。兼容配置见 [.env.example](./.env.example)。
+`pnpm sync` 会自动读取仓库根目录中被 Git 忽略的 `.env`，抓取 TC39 Dataset 与各提案 README，并更新 `apps/web/docs/public/data/`。启动 Web 时，Rspress 会根据这份数据生成中英文提案文档。每篇提案默认通过 `https://api.deepseek.com` 的 `deepseek-v4-flash` 生成中文标题、完整 README 译文和中英文快速审查，并以 10 篇为默认并发数。密钥统一使用 `DEEPSEEK_API_KEY`；可以通过 `TRANSLATION_BASE_URL` 和 `TRANSLATION_MODEL` 切换其他 OpenAI 兼容服务。单次 AI 请求超时为 120 秒，暂时性错误最多重试 2 次。标题与 README 的联合源哈希、翻译策略以及由模型、端点、提示词、输出 Schema 和关键请求参数生成的翻译器指纹均未变化时，直接复用整篇结果。未设置翻译密钥时只跳过待翻译内容，不影响英文数据；存在单篇翻译失败时不会覆盖上一份数据集。兼容配置见 [.env.example](./.env.example)。
 
 工作区职责保持两层：私有包 `@tc39-atlas/core` 负责共享模型、查询、抓取、翻译和数据生成；私有应用 `@tc39-atlas/web` 负责 Rspress 静态站与机器可读 Markdown。
 
@@ -44,6 +44,7 @@ pnpm dev:web
 
 1. Pages 来源使用 GitHub Actions。
 2. 如需自动翻译新增内容，将密钥保存为 Actions Secret `DEEPSEEK_API_KEY`。
+3. 如需切换翻译服务，在 Actions Variables 中设置 `TRANSLATION_BASE_URL` 和 `TRANSLATION_MODEL`。未设置时使用 DeepSeek 默认值。
 
 `manifest.json` 包含格式版本、内容版本、生成时间、文件字节数和 SHA-256，供同步与发布流程校验数据完整性。
 

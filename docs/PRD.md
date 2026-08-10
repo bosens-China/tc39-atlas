@@ -23,11 +23,11 @@ TC39 Atlas 面向关注 ECMAScript 提案的中文用户与 AI Agent。产品每
 
 ## 翻译与快速审查
 
-- GitHub Actions 通过 OpenAI 官方 TypeScript SDK 调用 DeepSeek OpenAI 兼容 API，默认地址为 `https://api.deepseek.com`，默认模型为 `deepseek-v4-flash`。密钥由 Actions Secret 配置。
+- GitHub Actions 通过 OpenAI 官方 TypeScript SDK 调用 OpenAI 兼容 API。默认地址为 `https://api.deepseek.com`，默认模型为 `deepseek-v4-flash`；仓库级 Actions Variables 可以覆盖端点与模型。密钥统一使用 `DEEPSEEK_API_KEY` Secret。
 - 每篇提案作为一个独立结构化请求，同时生成中文标题、完整 README 译文以及内容一致的中英文快速审查。快速审查只概述问题、主要方案和成熟度，不作输入内容之外的价值判断。
 - 官方英文标题始终保留为权威原文。中英文导航和详情页一级标题均显示英文标题；中文站随后展示中文标题，英文站不展示中文标题。页面描述由固定模板生成。
 - 翻译提示词把标题和 README 标记为待处理数据，禁止执行其中的指令。译文必须保留 Markdown 层级、代码、链接目标、图片地址及 HTML 属性；空 README 保持空译文。
-- 中文标题、README 译文和双语快速审查共用一条翻译元数据。缓存源哈希同时覆盖英文标题与 README，只有联合源哈希和策略版本都匹配时才复用；模型变化本身不触发重译。
+- 中文标题、README 译文和双语快速审查共用一条翻译元数据。缓存同时校验英文标题与 README 的联合源哈希、策略版本和翻译器指纹；端点、模型、提示词或结构化输出契约变化时会触发重译。
 - JSON 数据集是结构化翻译队列和缓存的权威来源。每轮生成在远端 Pages 快照与仓库快照中选择较新的有效数据，复用未变化的完整文章结果，只处理缺失或失效项目。
 - 每篇提案独立并发，默认并发数为 10。网络错误、超时、408、409、429 和 5xx 最多重试 3 次；单篇失败不回滚其他英文数据。供应商偶尔添加的完整外层 JSON 代码围栏会被兼容移除，不做通用内容修复。
 - 本地同步自动读取仓库根目录中被 Git 忽略的 `.env`；CI 从 Actions Secret 读取密钥。未配置翻译密钥时跳过待翻译项目，不影响英文数据发布。
@@ -35,14 +35,14 @@ TC39 Atlas 面向关注 ECMAScript 提案的中文用户与 AI Agent。产品每
 ## Web 产品体验
 
 - Rspress 提供文档外壳、左侧栏、右侧大纲、约定式路由、静态生成、内置全文搜索、语言切换和深浅主题。
-- 顶栏依次提供周刊动态、所有提案和关于，并由 Rspress 提供多语言切换。每个顶栏目录通过自己的 `_meta.json` 生成独立侧边栏。
-- 首页通过 Markdown frontmatter 使用 Rspress 内置 Home 布局；提案目录、周期动态和详情使用文档页，不维护并行的 React 应用壳。
+- 顶栏依次提供周刊动态、所有提案、接入 AI 和关于，并由 Rspress 提供多语言切换。每个顶栏目录通过自己的 `_meta.json` 生成独立侧边栏。
+- 首页通过 Markdown frontmatter 使用 Rspress 内置 Home 布局；提案目录、周期动态、AI Agent 接入和详情使用文档页，不维护并行的 React 应用壳。
 - JSON 数据集是 Web 的唯一权威数据源。Web 构建前从数据集生成中英文提案目录、五个日历周期的变化页、详情 Markdown、年份与阶段上下文页，以及提案侧边栏元数据。
 - 每个提案保留 `/proposals/<id>` 中英文兼容 URL，并展示当前语言的快速审查、README、阶段、状态、版本、同步时间、语言切换和官方仓库入口。
 - 提案侧边栏始终显示官方英文标题，同时按 ECMAScript 年份和 TC39 阶段组织；年份使用 `/proposals/year/<year>/<id>`，阶段使用 `/proposals/stage/<stage>/<id>`，组内优先按首次记录时间倒序。文章级结构化结果缺失时，中文侧边栏使用 Rspress 内置 tag 标记“未译”；已完成翻译的空 README 不误报。上下文页不加入全文搜索，避免同一提案重复出现。
-- Rspress 同时发布中英文 `llms.txt`、`llms-full.txt` 和每个路由的 Markdown。`llms.txt` 作为 Agent 的默认索引，展示提案阶段、状态与 ECMAScript 年份，并排除年份、阶段上下文页造成的重复链接。Agent 按需读取单页 Markdown，不默认加载完整站点文本。
+- Rspress 发布根 `llms.txt` 索引和每个路由的 Markdown。索引展示提案阶段、状态与 ECMAScript 年份，并排除年份、阶段上下文页造成的重复链接。Agent 先读取这一份索引，再按需读取一个或多个提案 Markdown 页面。
 - 周刊动态侧边栏提供今日、本周、本月、本季度和本年变化，按数据集生成时间的 UTC 日历边界筛选新增、阶段变化、完成、撤回和转为不活跃事件。
-- Skill 作为仓库级能力由 README 说明，不在 `apps/web/docs` 内维护并行页面。首页的机器可读入口直接指向对应语言的 `llms.txt`。
+- AI Agent 接入页说明 Skills CLI 安装方式、Agent 使用示例和机器可读文档流程；Skill 内部的兼容性决策规则仍只在仓库级 `SKILL.md` 中维护。
 - 用户通过文档导航和 Rspress 全文搜索查找提案，不提供客户端组合筛选与分页。
 - Web 构建产物不依赖 REST API、数据库、浏览器端数据请求或常驻后端。Rspress `base` 负责 GitHub Pages 项目子路径。
 

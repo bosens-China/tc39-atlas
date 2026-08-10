@@ -49,6 +49,8 @@ jobs:
         env:
           PREVIOUS_DATASET_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/data/dataset.json
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          TRANSLATION_BASE_URL: ${{ vars.TRANSLATION_BASE_URL }}
+          TRANSLATION_MODEL: ${{ vars.TRANSLATION_MODEL }}
 
       - name: Build the website
         run: pnpm --filter @tc39-atlas/web build

@@ -15,7 +15,7 @@ import {
 } from './translation.js';
 
 const TEST_FINGERPRINT = translationFingerprint({
-  TRANSLATION_API_KEY: 'test-key',
+  DEEPSEEK_API_KEY: 'test-key',
 });
 
 function proposal(overrides: Partial<AtlasProposal> = {}): AtlasProposal {
@@ -69,35 +69,53 @@ function translatedProposal(): AtlasProposal {
 afterEach(() => vi.restoreAllMocks());
 
 describe('proposal translation queue', () => {
-  it('uses DeepSeek defaults while retaining explicit OpenAI compatibility', () => {
+  it('uses DeepSeek defaults', () => {
     expect(translationConfig({ DEEPSEEK_API_KEY: 'test-key' })).toMatchObject({
       baseURL: 'https://api.deepseek.com',
       model: 'deepseek-v4-flash',
       concurrency: 10,
       requestTimeoutMs: 120_000,
     });
-    const openAI = translationConfig({ OPENAI_API_KEY: 'test-key' });
-    expect(openAI).toMatchObject({
-      model: 'gpt-5.6-luna',
-      requestTimeoutMs: 120_000,
+  });
+
+  it('accepts repository overrides and ignores empty values', () => {
+    expect(
+      translationConfig({
+        DEEPSEEK_API_KEY: 'test-key',
+        TRANSLATION_BASE_URL: 'https://openai-compatible.example/v1',
+        TRANSLATION_MODEL: 'compatible-model',
+      }),
+    ).toMatchObject({
+      baseURL: 'https://openai-compatible.example/v1',
+      model: 'compatible-model',
     });
-    expect(openAI).not.toHaveProperty('baseURL');
+    expect(
+      translationConfig({
+        DEEPSEEK_API_KEY: 'test-key',
+        TRANSLATION_BASE_URL: '',
+        TRANSLATION_MODEL: '',
+      }),
+    ).toMatchObject({
+      apiKey: 'test-key',
+      baseURL: 'https://api.deepseek.com',
+      model: 'deepseek-v4-flash',
+    });
   });
 
   it('fingerprints result-affecting translation settings', () => {
     const base = translationFingerprint({
-      TRANSLATION_API_KEY: 'test-key',
+      DEEPSEEK_API_KEY: 'test-key',
     });
 
     expect(
       translationFingerprint({
-        TRANSLATION_API_KEY: 'test-key',
+        DEEPSEEK_API_KEY: 'test-key',
         TRANSLATION_CONCURRENCY: '2',
       }),
     ).toBe(base);
     expect(
       translationFingerprint({
-        TRANSLATION_API_KEY: 'test-key',
+        DEEPSEEK_API_KEY: 'test-key',
         TRANSLATION_MODEL: 'another-model',
       }),
     ).not.toBe(base);
@@ -141,7 +159,7 @@ describe('proposal translation queue', () => {
   it('retranslates complete output when the translator fingerprint changes', async () => {
     const translate = vi.fn(async (value: AtlasProposal) => output(value));
     const nextFingerprint = translationFingerprint({
-      TRANSLATION_API_KEY: 'test-key',
+      DEEPSEEK_API_KEY: 'test-key',
       TRANSLATION_MODEL: 'next-model',
     });
 
@@ -191,9 +209,10 @@ describe('proposal translation queue', () => {
     );
   });
 
-  it('sends one structured article request with configured limits', async () => {
+  it('uses Responses by default and Chat Completions for compatible models', async () => {
     vi.spyOn(console, 'info').mockImplementation(() => undefined);
     const bodies: unknown[] = [];
+    const paths: string[] = [];
     const server = createServer((request, response) => {
       let body = '';
       request.setEncoding('utf8');
@@ -202,7 +221,41 @@ describe('proposal translation queue', () => {
       });
       request.on('end', () => {
         bodies.push(JSON.parse(body) as unknown);
+        paths.push(request.url ?? '');
         response.writeHead(200, { 'content-type': 'application/json' });
+        if (request.url === '/chat/completions') {
+          response.end(
+            JSON.stringify({
+              id: 'chat-1',
+              object: 'chat.completion',
+              created: 1,
+              model: 'compatible-model',
+              choices: [
+                {
+                  index: 0,
+                  finish_reason: 'stop',
+                  message: {
+                    role: 'assistant',
+                    content: JSON.stringify({
+                      titleZh: '提案 A',
+                      readmeZh: '# 中文译文',
+                      quickReview: {
+                        en: 'A short English review.',
+                        zh: '简短的中文审查。',
+                      },
+                    }),
+                  },
+                },
+              ],
+              usage: {
+                prompt_tokens: 10,
+                completion_tokens: 20,
+                total_tokens: 30,
+              },
+            }),
+          );
+          return;
+        }
         response.end(
           JSON.stringify({
             id: 'response-1',
@@ -253,7 +306,7 @@ describe('proposal translation queue', () => {
 
     try {
       const env = {
-        TRANSLATION_API_KEY: 'test-key',
+        DEEPSEEK_API_KEY: 'test-key',
         TRANSLATION_BASE_URL: `http://127.0.0.1:${address.port}`,
         TRANSLATION_MODEL: 'deepseek-v4-flash',
       };
@@ -277,7 +330,16 @@ describe('proposal translation queue', () => {
       });
       expect(bodies[0]).not.toHaveProperty('max_output_tokens');
 
-      expect(bodies).toHaveLength(1);
+      const compatibleRun = await translatePendingProposalsFromEnv(
+        [proposal()],
+        { ...env, TRANSLATION_MODEL: 'compatible-model' },
+      );
+      expect(compatibleRun.result.translated).toBe(1);
+      expect(bodies[1]).toMatchObject({
+        model: 'compatible-model',
+        response_format: { type: 'json_object' },
+      });
+      expect(paths).toEqual(['/responses', '/chat/completions']);
     } finally {
       await new Promise<void>((resolve, reject) =>
         server.close((error) => (error ? reject(error) : resolve())),
