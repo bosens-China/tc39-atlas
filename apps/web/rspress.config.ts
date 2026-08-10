@@ -2,6 +2,8 @@ import { defineConfig } from '@rspress/core';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { renderLlmsTxt } from './src/llms.js';
+
 const webRoot = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
@@ -11,6 +13,7 @@ export default defineConfig({
   lang: 'zh',
   title: 'TC39 Atlas',
   description: '面向中文用户与 AI Agent 的 TC39 提案知识库',
+  llms: { llmsTxt: renderLlmsTxt },
   icon: '/favicon.png',
   logo: '/favicon.png',
   logoText: 'TC39 Atlas',

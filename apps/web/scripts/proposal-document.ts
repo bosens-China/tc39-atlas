@@ -120,6 +120,10 @@ function frontmatter(
     'pageType: doc',
     'footer: false',
     ...(context ? ['search: false'] : []),
+    `proposalId: ${value(proposal.id)}`,
+    `proposalStage: ${value(proposal.stage)}`,
+    `proposalStatus: ${value(proposal.status)}`,
+    `proposalEdition: ${value(proposal.edition)}`,
     `tag: ${value(proposal.stage === null ? '?' : `S${proposal.stage}`)}`,
     '---',
   ].join('\n');
