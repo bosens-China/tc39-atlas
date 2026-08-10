@@ -43,6 +43,14 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Restore Rspack persistent cache
+        uses: actions/cache@v4
+        with:
+          path: apps/web/node_modules/.cache/rspack
+          key: rspack-${{ runner.os }}-node-22-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            rspack-${{ runner.os }}-node-22-${{ hashFiles('pnpm-lock.yaml') }}-
+
       - name: Run repository quality checks
         run: pnpm check
 

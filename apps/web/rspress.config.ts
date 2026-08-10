@@ -9,6 +9,10 @@ const webRoot = dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   root: join(webRoot, 'docs'),
   outDir: join(webRoot, 'doc_build'),
+  ssg: { experimentalWorker: true },
+  builderConfig: {
+    performance: { printFileSize: false },
+  },
   base: process.env.BASE_PATH ?? '/',
   lang: 'zh',
   title: 'TC39 Atlas',
