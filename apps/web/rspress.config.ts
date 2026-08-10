@@ -33,6 +33,11 @@ export default defineConfig({
   ],
   themeConfig: {
     fallbackHeadingTitle: true,
+    lastUpdated: true,
+    editLink: {
+      docRepoBaseUrl:
+        'https://github.com/bosens-China/tc39-atlas/edit/main/apps/web/docs',
+    },
     socialLinks: [
       {
         icon: 'github',

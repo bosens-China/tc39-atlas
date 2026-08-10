@@ -54,6 +54,9 @@ importers:
       '@types/node':
         specifier: ^24.13.3
         version: 24.13.3
+      '@types/react':
+        specifier: ^19.2.18
+        version: 19.2.18
       eslint:
         specifier: ^10.8.0
         version: 10.8.0(jiti@2.7.0)
