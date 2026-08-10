@@ -4,6 +4,8 @@ TC39 Atlas 面向中文用户与 AI Agent，提供 TC39 提案索引、中文 RE
 
 GitHub Actions 负责抓取上游并生成静态 JSON。Web 与机器可读 Markdown 发布到 GitHub Pages。项目不需要数据库、后端常驻服务或 Docker。
 
+[在线文档](https://bosens-china.github.io/tc39-atlas/) · [接入 AI Agent](https://bosens-china.github.io/tc39-atlas/agent/) · [`llms.txt`](https://bosens-china.github.io/tc39-atlas/llms.txt)
+
 ## 使用 Skill
 
 仓库对外提供一个 `modernize-ecmascript` Skill，可以通过以下命令发现并安装：
@@ -26,7 +28,7 @@ pnpm sync
 pnpm dev:web
 ```
 
-`pnpm sync` 会自动读取仓库根目录中被 Git 忽略的 `.env`，抓取 TC39 Dataset 与各提案 README，并更新 `apps/web/docs/public/data/`。启动 Web 时，Rspress 会根据这份数据生成中英文提案文档。每篇提案默认通过 `https://api.deepseek.com` 的 `deepseek-v4-flash` 生成中文标题、完整 README 译文和中英文快速审查，并以 10 篇为默认并发数。密钥统一使用 `DEEPSEEK_API_KEY`；可以通过 `TRANSLATION_BASE_URL` 和 `TRANSLATION_MODEL` 切换其他 OpenAI 兼容服务。单次 AI 请求超时为 120 秒，暂时性错误最多重试 2 次。标题与 README 的联合源哈希、翻译策略以及由模型、端点、提示词、输出 Schema 和关键请求参数生成的翻译器指纹均未变化时，直接复用整篇结果。未设置翻译密钥时只跳过待翻译内容，不影响英文数据；存在单篇翻译失败时不会覆盖上一份数据集。兼容配置见 [.env.example](./.env.example)。
+`pnpm sync` 会读取仓库根目录的 `.env`，抓取 TC39 Dataset 与各提案 README，并更新站点数据。翻译默认使用 DeepSeek 的 `deepseek-v4-flash`，密钥统一使用 `DEEPSEEK_API_KEY`。可以通过 `TRANSLATION_BASE_URL` 和 `TRANSLATION_MODEL` 切换其他 OpenAI 兼容服务；完整配置见 [.env.example](./.env.example)。未配置密钥时只跳过待翻译内容，不影响英文数据。
 
 工作区职责保持两层：私有包 `@tc39-atlas/core` 负责共享模型、查询、抓取、翻译和数据生成；私有应用 `@tc39-atlas/web` 负责 Rspress 静态站与机器可读 Markdown。
 
