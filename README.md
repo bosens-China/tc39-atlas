@@ -50,7 +50,7 @@ pnpm sync
 pnpm dev:web
 ```
 
-`pnpm sync` 会自动读取仓库根目录中被 Git 忽略的 `.env`，抓取 TC39 Dataset 与各提案 README，并更新 `apps/web/docs/public/data/`。启动 Web 时，Rspress 会根据这份数据生成中英文提案文档。每篇提案默认通过 DeepSeek `deepseek-v4-flash` 的一次结构化请求生成中文标题、完整 README 译文和中英文快速审查，并以 10 篇为默认并发数。标题与 README 的联合源哈希及翻译策略均未变化时直接复用整篇结果，不会重复请求。未设置 `DEEPSEEK_API_KEY` 时只跳过待翻译内容，不影响英文数据。兼容配置见 [.env.example](./.env.example)。
+`pnpm sync` 会自动读取仓库根目录中被 Git 忽略的 `.env`，抓取 TC39 Dataset 与各提案 README，并更新 `apps/web/docs/public/data/`。启动 Web 时，Rspress 会根据这份数据生成中英文提案文档。每篇提案默认通过 DeepSeek `deepseek-v4-flash` 的一次结构化请求生成中文标题、完整 README 译文和中英文快速审查，并以 10 篇为默认并发数。单次 AI 请求超时为 120 秒，暂时性错误最多重试 2 次。标题与 README 的联合源哈希、翻译策略以及由模型、端点、提示词、输出 Schema 和关键请求参数生成的翻译器指纹均未变化时，直接复用整篇结果。未设置 `DEEPSEEK_API_KEY` 时只跳过待翻译内容，不影响英文数据；存在单篇翻译失败时不会覆盖上一份数据集。兼容配置见 [.env.example](./.env.example)。
 
 工作区职责保持三层：私有包 `@tc39-atlas/core` 负责共享模型、查询、抓取、翻译和数据生成；私有应用 `@tc39-atlas/web` 负责 Rspress 静态站；可发布包 `@tc39-atlas/mcp` 提供本地 CLI 与 MCP 服务。
 
@@ -76,7 +76,7 @@ pnpm dev:mcp
 - 手动触发；
 - `main` 分支中的 Web、core 或工作流发生变化。
 
-工作流先读取现有 Pages 数据集，复用标题与 README 联合源哈希和翻译策略均未变化的文章级结构化结果。随后抓取上游、记录最近 366 天的变化、生成 `dataset.json` 与 `manifest.json`，最后由 Rspress 生成包含双语快速审查的提案文档、全文搜索索引和 Pages 静态站点。首次成功同步只建立提案快照基线，不会把同步前的全部存量提案记为新增；后续同步以上一份快照为锚点记录变化。任一步骤失败时不会覆盖当前 Pages 版本。
+工作流先读取现有 Pages 数据集，复用联合源哈希、翻译策略和翻译器指纹均未变化的文章级结构化结果。随后抓取上游、记录最近 366 天的变化、生成 `dataset.json` 与 `manifest.json`，最后由 Rspress 生成包含双语快速审查的提案文档、全文搜索索引和 Pages 静态站点。首次成功同步只建立提案快照基线，不会把同步前的全部存量提案记为新增；后续同步以上一份快照为锚点记录变化。任一步骤或单篇翻译失败时不会覆盖当前 Pages 版本。
 
 仓库需要完成以下设置：
 

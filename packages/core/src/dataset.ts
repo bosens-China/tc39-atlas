@@ -15,6 +15,7 @@ import { detectProposalChanges, mergeProposalChanges } from './sync.js';
 import {
   TRANSLATION_POLICY_VERSION,
   articleSourceHash,
+  assertTranslationSucceeded,
   translatePendingProposalsFromEnv,
   type TranslationRunResult,
 } from './translation.js';
@@ -215,6 +216,7 @@ async function writeAtomically(path: string, contents: string): Promise<void> {
 export async function generateAtlasDataset(
   options: GenerateDatasetOptions,
 ): Promise<GenerateDatasetResult> {
+  const env = options.env ?? process.env;
   const datasetPath = join(options.outputDirectory, DATASET_FILE_NAME);
   const remote = options.previousUrl
     ? await fetchPreviousDataset(options.previousUrl)
@@ -223,10 +225,8 @@ export async function generateAtlasDataset(
   const previous = selectPreviousDataset(remote, local) ?? emptyDataset();
   const incoming = await fetchTc39Proposals();
   const merged = mergePublishedProposals(previous.proposals, incoming);
-  const translated = await translatePendingProposalsFromEnv(
-    merged,
-    options.env,
-  );
+  const translated = await translatePendingProposalsFromEnv(merged, env);
+  assertTranslationSucceeded(translated.result);
   const dataset = buildAtlasDataset(previous, translated.proposals);
   const serialized = serializeDataset(dataset);
   const manifest = createDatasetManifest(dataset, serialized);

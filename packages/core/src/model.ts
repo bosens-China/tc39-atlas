@@ -39,6 +39,10 @@ export const proposalSummarySchema = proposalSnapshotSchema.extend({
 export const translationMetadataSchema = z.object({
   sourceHash: z.string().regex(/^[a-f0-9]{64}$/),
   policyVersion: z.string().min(1),
+  translatorFingerprint: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .optional(),
   model: z.string().min(1),
   translatedAt: z.string().datetime(),
 });

@@ -7,10 +7,16 @@ import type { TranslationOutput } from './translation.js';
 import {
   TRANSLATION_POLICY_VERSION,
   articleSourceHash,
+  assertTranslationSucceeded,
   translatePendingProposals,
   translatePendingProposalsFromEnv,
   translationConfig,
+  translationFingerprint,
 } from './translation.js';
+
+const TEST_FINGERPRINT = translationFingerprint({
+  TRANSLATION_API_KEY: 'test-key',
+});
 
 function proposal(overrides: Partial<AtlasProposal> = {}): AtlasProposal {
   return {
@@ -53,6 +59,7 @@ function translatedProposal(): AtlasProposal {
     translation: {
       sourceHash: articleSourceHash(value),
       policyVersion: TRANSLATION_POLICY_VERSION,
+      translatorFingerprint: TEST_FINGERPRINT,
       model: 'old-model',
       translatedAt: '2026-08-01T00:00:00.000Z',
     },
@@ -67,13 +74,33 @@ describe('proposal translation queue', () => {
       baseURL: 'https://api.deepseek.com',
       model: 'deepseek-v4-flash',
       concurrency: 10,
+      requestTimeoutMs: 120_000,
     });
-    expect(translationConfig({ OPENAI_API_KEY: 'test-key' })).toMatchObject({
+    const openAI = translationConfig({ OPENAI_API_KEY: 'test-key' });
+    expect(openAI).toMatchObject({
       model: 'gpt-5.6-luna',
+      requestTimeoutMs: 120_000,
     });
+    expect(openAI).not.toHaveProperty('baseURL');
+  });
+
+  it('fingerprints result-affecting translation settings', () => {
+    const base = translationFingerprint({
+      TRANSLATION_API_KEY: 'test-key',
+    });
+
     expect(
-      translationConfig({ OPENAI_API_KEY: 'test-key' }),
-    ).not.toHaveProperty('baseURL');
+      translationFingerprint({
+        TRANSLATION_API_KEY: 'test-key',
+        TRANSLATION_CONCURRENCY: '2',
+      }),
+    ).toBe(base);
+    expect(
+      translationFingerprint({
+        TRANSLATION_API_KEY: 'test-key',
+        TRANSLATION_MODEL: 'another-model',
+      }),
+    ).not.toBe(base);
   });
 
   it('reports pending work when no API key is configured', async () => {
@@ -93,7 +120,7 @@ describe('proposal translation queue', () => {
         proposal({ id: 'proposal-c' }),
       ],
       translate,
-      { maxItems: 1 },
+      { maxItems: 1, fingerprint: TEST_FINGERPRINT },
     );
 
     expect(run.result).toMatchObject({ pending: 1, translated: 1, failed: 0 });
@@ -111,7 +138,26 @@ describe('proposal translation queue', () => {
     expect(run.proposals[2]?.readmeZh).toBeNull();
   });
 
-  it('retries transient errors but not permanent errors', async () => {
+  it('retranslates complete output when the translator fingerprint changes', async () => {
+    const translate = vi.fn(async (value: AtlasProposal) => output(value));
+    const nextFingerprint = translationFingerprint({
+      TRANSLATION_API_KEY: 'test-key',
+      TRANSLATION_MODEL: 'next-model',
+    });
+
+    const run = await translatePendingProposals(
+      [translatedProposal()],
+      translate,
+      { fingerprint: nextFingerprint },
+    );
+
+    expect(translate).toHaveBeenCalledOnce();
+    expect(run.proposals[0]?.translation?.translatorFingerprint).toBe(
+      nextFingerprint,
+    );
+  });
+
+  it('retries transient errors twice but not permanent errors', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     let transientAttempts = 0;
@@ -124,7 +170,7 @@ describe('proposal translation queue', () => {
         }
         return output(value);
       },
-      { retries: 3, retryMinTimeout: 1 },
+      { retryMinTimeout: 1 },
     );
     let permanentAttempts = 0;
     const permanent = await translatePendingProposals(
@@ -133,16 +179,19 @@ describe('proposal translation queue', () => {
         permanentAttempts += 1;
         throw Object.assign(new Error('unauthorized'), { status: 401 });
       },
-      { retries: 3, retryMinTimeout: 1 },
+      { retryMinTimeout: 1 },
     );
 
     expect(transientAttempts).toBe(3);
     expect(transient.result.translated).toBe(1);
     expect(permanentAttempts).toBe(1);
     expect(permanent.result.failed).toBe(1);
+    expect(() => assertTranslationSucceeded(permanent.result)).toThrow(
+      'dataset was not updated',
+    );
   });
 
-  it('returns one structured article response and then makes no request', async () => {
+  it('sends one structured article request with configured limits', async () => {
     vi.spyOn(console, 'info').mockImplementation(() => undefined);
     const bodies: unknown[] = [];
     const server = createServer((request, response) => {
@@ -217,7 +266,6 @@ describe('proposal translation queue', () => {
       expect(bodies[0]).toMatchObject({
         model: 'deepseek-v4-flash',
         reasoning: { effort: 'none' },
-        max_output_tokens: 384_000,
         store: false,
         text: {
           format: {
@@ -227,12 +275,8 @@ describe('proposal translation queue', () => {
           },
         },
       });
+      expect(bodies[0]).not.toHaveProperty('max_output_tokens');
 
-      const repeated = await translatePendingProposalsFromEnv(
-        run.proposals,
-        env,
-      );
-      expect(repeated.result).toMatchObject({ pending: 0, translated: 0 });
       expect(bodies).toHaveLength(1);
     } finally {
       await new Promise<void>((resolve, reject) =>

@@ -12,16 +12,21 @@ import {
   createProposalTranslator,
   InvalidTranslationResponseError,
   translationConfig,
+  translationFingerprint,
+  TRANSLATION_POLICY_VERSION,
 } from './translation-provider.js';
 
-export { translationConfig } from './translation-provider.js';
-
-export const TRANSLATION_POLICY_VERSION = '4';
+export {
+  translationConfig,
+  translationFingerprint,
+  TRANSLATION_POLICY_VERSION,
+} from './translation-provider.js';
 const DEFAULT_CONCURRENCY = 10;
-const DEFAULT_RETRIES = 3;
+const DEFAULT_RETRIES = 2;
 
 interface TranslationOptions {
   concurrency?: number;
+  fingerprint?: string;
   maxItems?: number;
   retries?: number;
   retryMinTimeout?: number;
@@ -32,6 +37,7 @@ export interface TranslationConfig {
   baseURL?: string;
   model: string;
   concurrency: number;
+  requestTimeoutMs: number;
   maxItems?: number;
 }
 
@@ -65,6 +71,15 @@ export interface TranslationRun {
   result: TranslationRunResult;
 }
 
+/** 阻止部分翻译失败的数据覆盖上一份完整发布结果。 */
+export function assertTranslationSucceeded(result: TranslationRunResult): void {
+  if (result.failed > 0) {
+    throw new Error(
+      `Translation failed for ${result.failed} proposal(s); dataset was not updated`,
+    );
+  }
+}
+
 function errorStatus(error: unknown): number | undefined {
   if (typeof error !== 'object' || error === null || !('status' in error)) {
     return undefined;
@@ -96,7 +111,10 @@ export function articleSourceHash(
     .digest('hex');
 }
 
-function needsTranslation(proposal: AtlasProposal): boolean {
+function needsTranslation(
+  proposal: AtlasProposal,
+  fingerprint: string,
+): boolean {
   const readmeIsValid = proposal.readme.trim()
     ? Boolean(proposal.readmeZh?.trim())
     : proposal.readmeZh === '';
@@ -106,17 +124,20 @@ function needsTranslation(proposal: AtlasProposal): boolean {
     proposal.quickReview?.en.trim() &&
     proposal.quickReview.zh.trim() &&
     proposal.translation?.sourceHash === articleSourceHash(proposal) &&
-    proposal.translation.policyVersion === TRANSLATION_POLICY_VERSION
+    proposal.translation.policyVersion === TRANSLATION_POLICY_VERSION &&
+    proposal.translation.translatorFingerprint === fingerprint
   );
 }
 
 function translationMetadata(
   proposal: AtlasProposal,
   output: TranslationOutput,
+  fingerprint: string,
 ): TranslationMetadata {
   return {
     sourceHash: articleSourceHash(proposal),
     policyVersion: TRANSLATION_POLICY_VERSION,
+    translatorFingerprint: fingerprint,
     model: output.model,
     translatedAt: new Date().toISOString(),
   };
@@ -131,6 +152,7 @@ export async function translatePendingProposals(
   const concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
   const retries = options.retries ?? DEFAULT_RETRIES;
   const retryMinTimeout = options.retryMinTimeout ?? 1_000;
+  const fingerprint = options.fingerprint ?? translationFingerprint();
   if (
     concurrency < 1 ||
     retries < 0 ||
@@ -145,7 +167,7 @@ export async function translatePendingProposals(
   }));
   const pending = proposals
     .map((proposal, index) => ({ proposal, index }))
-    .filter(({ proposal }) => needsTranslation(proposal));
+    .filter(({ proposal }) => needsTranslation(proposal, fingerprint));
   const candidates = options.maxItems
     ? pending.slice(0, options.maxItems)
     : pending;
@@ -183,7 +205,7 @@ export async function translatePendingProposals(
           titleZh: output.titleZh,
           readmeZh: output.readmeZh,
           quickReview: output.quickReview,
-          translation: translationMetadata(proposal, output),
+          translation: translationMetadata(proposal, output, fingerprint),
         };
         result.translated += 1;
       } catch (error: unknown) {
@@ -208,20 +230,22 @@ export async function translatePendingProposalsFromEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<TranslationRun> {
   const config = translationConfig(env);
+  const fingerprint = translationFingerprint(env);
   if (!config) {
     return {
       proposals: [...source],
       result: {
-        pending: source.filter(needsTranslation).length,
+        pending: source.filter((proposal) =>
+          needsTranslation(proposal, fingerprint),
+        ).length,
         translated: 0,
         failed: 0,
         skipped: true,
       },
     };
   }
-  return translatePendingProposals(
-    source,
-    createProposalTranslator(config),
-    config,
-  );
+  return translatePendingProposals(source, createProposalTranslator(config), {
+    ...config,
+    fingerprint,
+  });
 }

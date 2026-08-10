@@ -55,6 +55,7 @@ export {
   isRetryableTranslationError,
   translatePendingProposals,
   translatePendingProposalsFromEnv,
+  translationFingerprint,
   type ProposalTranslator,
   type TranslationOutput,
   type TranslationRun,
