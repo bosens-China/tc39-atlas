@@ -25,16 +25,22 @@ After installation, start a new AI agent session so the Skill is loaded.
 
 ## Use it in an AI agent
 
-Describe the modernization task directly. For example:
+Writing or modifying JavaScript or TypeScript requires no extra instruction. The Skill considers only code newly written, currently being modified, or already touched by the current task, and adopts stable capabilities when the project's compatibility evidence is sufficient. If the baseline cannot be determined, it silently skips modernization without blocking the original task.
+
+For an explicit repository-wide review, use a prompt such as:
 
 ```text
-Use modernize-ecmascript to inspect this repository.
-Find code that can use the newest stable ECMAScript capabilities without raising
-the current Node.js, browser, or TypeScript compatibility baselines.
-Report the plan before editing, and ask me first if the target environment is unclear.
+Use modernize-ecmascript to review and modernize this repository.
+First find Stage 4 candidates that can replace redundant patterns or handwritten
+helpers. Then filter them against the actual TypeScript, build targets, Node.js,
+browser, and deployment environments. Do not raise the current compatibility
+baseline. Report the plan before editing. Ask me one consolidated question only
+when missing constraints would actually change the candidate decisions.
 ```
 
-The agent first identifies the affected app, package, and consumers in a single repository or monorepo. It can automatically use safe Stage 4 capabilities when the evidence is consistent. It asks before raising a compatibility baseline, upgrading tools, adding a polyfill, or adopting a Stage 3 capability.
+The agent first identifies the affected apps, packages, and consumers in a single repository or monorepo, finds candidates, and then filters for compatible Stage 4 capabilities. In this example, it excludes candidates that require a higher compatibility baseline, tool upgrades, a polyfill, or a Stage 3 capability, and reports those exclusions in the plan.
+
+For a focused capability check, ask “Can this project safely use `Object.groupBy`?” The Skill checks only that capability and does not expand into a repository-wide review.
 
 ## Machine-readable documentation
 
