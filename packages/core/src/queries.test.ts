@@ -19,7 +19,7 @@ const base: AtlasProposal = {
   readme: '# Iterator helpers',
   readmeHash: 'a'.repeat(64),
   readmeZh: '# 迭代器辅助方法',
-  quickReview: { en: 'Iterator helper review.', zh: '迭代器辅助方法审查。' },
+  overview: { en: 'Iterator helper overview.', zh: '迭代器辅助方法速览。' },
   translation: {
     sourceHash: 'a'.repeat(64),
     policyVersion: '2',
@@ -48,7 +48,7 @@ describe('proposal queries', () => {
         stage: 4,
         status: 'finished',
         readmeZh: null,
-        quickReview: null,
+        overview: null,
         translation: null,
       },
     ];

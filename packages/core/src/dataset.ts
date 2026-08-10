@@ -4,19 +4,21 @@ import { dirname, join } from 'node:path';
 
 import {
   DATASET_SCHEMA_VERSION,
+  atlasDatasetSchema,
   parseAtlasDataset,
   type AtlasDataset,
   type AtlasProposal,
   type DatasetManifest,
   type SyncedProposal,
+  type TranslationCacheEntry,
 } from './model.js';
 import { fetchTc39Proposals } from './source.js';
 import { detectProposalChanges, mergeProposalChanges } from './sync.js';
 import {
-  TRANSLATION_POLICY_VERSION,
-  articleSourceHash,
-  assertTranslationSucceeded,
+  TRANSLATION_CONTRACT_VERSION,
   translatePendingProposalsFromEnv,
+  translationCacheKey,
+  translationContentHash,
   type TranslationRunResult,
 } from './translation.js';
 
@@ -67,29 +69,29 @@ function isUnanchoredSnapshot(dataset: AtlasDataset): boolean {
 function reuseTranslation(
   current: SyncedProposal,
   previous: AtlasProposal | undefined,
-): Pick<AtlasProposal, 'titleZh' | 'readmeZh' | 'quickReview' | 'translation'> {
+): Pick<AtlasProposal, 'titleZh' | 'readmeZh' | 'overview' | 'translation'> {
   const readmeIsValid = current.readme.trim()
     ? Boolean(previous?.readmeZh?.trim())
     : previous?.readmeZh === '';
   if (
     previous?.titleZh?.trim() &&
     readmeIsValid &&
-    previous.quickReview?.en.trim() &&
-    previous.quickReview.zh.trim() &&
-    previous.translation?.sourceHash === articleSourceHash(current) &&
-    previous.translation.policyVersion === TRANSLATION_POLICY_VERSION
+    previous.overview?.en.trim() &&
+    previous.overview.zh.trim() &&
+    previous.translation?.sourceHash === translationContentHash(current) &&
+    previous.translation.policyVersion === TRANSLATION_CONTRACT_VERSION
   ) {
     return {
       titleZh: previous.titleZh,
       readmeZh: previous.readmeZh,
-      quickReview: previous.quickReview,
+      overview: previous.overview,
       translation: previous.translation,
     };
   }
   return {
     titleZh: null,
     readmeZh: null,
-    quickReview: null,
+    overview: null,
     translation: null,
   };
 }
@@ -138,7 +140,48 @@ export function buildAtlasDataset(
 }
 
 export function serializeDataset(dataset: AtlasDataset): string {
-  return `${JSON.stringify(dataset, null, 2)}\n`;
+  // 从当前引用重建缓存表，旧文章版本没有引用时会自然被清扫。
+  const translations: Record<string, TranslationCacheEntry> = {};
+  const proposals = dataset.proposals.map((proposal) => {
+    const { titleZh, readmeZh, overview, translation, ...stored } = proposal;
+    const contentHash = translationContentHash(proposal);
+    const cacheKey = translationCacheKey(proposal);
+    const readmeIsValid = proposal.readme.trim()
+      ? Boolean(readmeZh?.trim())
+      : readmeZh === '';
+    const isComplete = Boolean(
+      titleZh?.trim() &&
+      readmeIsValid &&
+      overview?.en.trim() &&
+      overview.zh.trim() &&
+      translation?.sourceHash === contentHash &&
+      translation.policyVersion === TRANSLATION_CONTRACT_VERSION,
+    );
+    if (isComplete && titleZh && readmeZh !== null && overview && translation) {
+      translations[cacheKey] = {
+        titleZh,
+        readmeZh,
+        overview,
+        translation: {
+          policyVersion: TRANSLATION_CONTRACT_VERSION,
+          ...(translation.translatorFingerprint
+            ? { translatorFingerprint: translation.translatorFingerprint }
+            : {}),
+          model: translation.model,
+          translatedAt: translation.translatedAt,
+        },
+      };
+    }
+    return { ...stored, translationRef: isComplete ? cacheKey : null };
+  });
+  const stored = atlasDatasetSchema.parse({
+    schemaVersion: DATASET_SCHEMA_VERSION,
+    generatedAt: dataset.generatedAt,
+    proposals,
+    translations,
+    changes: dataset.changes,
+  });
+  return `${JSON.stringify(stored, null, 2)}\n`;
 }
 
 export function createDatasetManifest(
@@ -226,7 +269,6 @@ export async function generateAtlasDataset(
   const incoming = await fetchTc39Proposals();
   const merged = mergePublishedProposals(previous.proposals, incoming);
   const translated = await translatePendingProposalsFromEnv(merged, env);
-  assertTranslationSucceeded(translated.result);
   const dataset = buildAtlasDataset(previous, translated.proposals);
   const serialized = serializeDataset(dataset);
   const manifest = createDatasetManifest(dataset, serialized);

@@ -9,32 +9,32 @@ import type {
   TranslationConfig,
   TranslationOutput,
 } from './translation.js';
+import { TRANSLATION_CONTRACT_VERSION } from './translation-cache-key.js';
 
 const DEFAULT_BASE_URL = 'https://api.deepseek.com';
 const DEFAULT_MODEL = 'deepseek-v4-flash';
-const DEFAULT_CONCURRENCY = 10;
-
-export const TRANSLATION_POLICY_VERSION = '6';
+const DEFAULT_CONCURRENCY = 100;
+const DEFAULT_TEMPERATURE = 1;
 
 const translationOutputSchema = z.object({
   titleZh: z.string().trim().min(1),
   readmeZh: z.string(),
-  quickReview: z.object({
+  overview: z.object({
     en: z.string().trim().min(1),
     zh: z.string().trim().min(1),
   }),
 });
 
-const TRANSLATION_INSTRUCTIONS = `你是 TC39 提案文档翻译与快速审查助手。每次只处理一个提案，并返回指定的 JSON 对象。
+const TRANSLATION_INSTRUCTIONS = `你是 TC39 提案文档翻译与提案速览助手。每次只处理一个提案，并返回指定的 JSON 对象。
 
 字段要求：
 1. titleZh：把英文标题翻译为准确、简洁、自然的简体中文。
 2. readmeZh：把英文 README 完整翻译为准确、自然的简体中文；如果原 README 为空，必须返回空字符串。
-3. quickReview.en：用 2 至 4 句英文快速说明提案解决的问题、主要方案和当前成熟度，只能依据输入内容，不作价值判断。
-4. quickReview.zh：与英文快速审查信息一致的自然简体中文版本，不得增删事实。
+3. overview.en：用 2 至 4 句英文快速说明提案解决的问题、主要方案和当前成熟度，只能依据输入内容，不作价值判断。
+4. overview.zh：与英文提案速览信息一致的自然简体中文版本，不得增删事实。
 
 仅返回 JSON，不要添加 Markdown 代码围栏或其他文字。结构示例：
-{"titleZh":"提案标题","readmeZh":"# 完整译文","quickReview":{"en":"English review.","zh":"中文审查。"}}
+{"titleZh":"提案标题","readmeZh":"# 完整译文","overview":{"en":"English overview.","zh":"中文速览。"}}
 
 翻译规则：
 1. 不得遗漏、总结、合并、重排或新增 README 内容。
@@ -48,6 +48,7 @@ const TRANSLATION_INSTRUCTIONS = `你是 TC39 提案文档翻译与快速审查�
 interface TranslationProfile {
   baseURL?: string;
   model: string;
+  temperature: number;
   maxOutputTokens?: number;
 }
 
@@ -75,18 +76,19 @@ function translationProfile(env: NodeJS.ProcessEnv): TranslationProfile {
   return {
     baseURL: env.TRANSLATION_BASE_URL || DEFAULT_BASE_URL,
     model: env.TRANSLATION_MODEL || DEFAULT_MODEL,
+    temperature: DEFAULT_TEMPERATURE,
     ...(maxOutputTokens ? { maxOutputTokens } : {}),
   };
 }
 
-/** 把所有会影响翻译结果的配置收敛为稳定指纹，避免只靠人工升级策略版本。 */
+/** 记录翻译实现与运行配置，供结果诊断；缓存失效由显式契约版本控制。 */
 export function translationFingerprint(
   env: NodeJS.ProcessEnv = process.env,
 ): string {
   return createHash('sha256')
     .update(
       JSON.stringify([
-        TRANSLATION_POLICY_VERSION,
+        TRANSLATION_CONTRACT_VERSION,
         translationProfile(env),
         {
           sdk: 'langchain',
@@ -124,9 +126,11 @@ export function translationConfig(
 
 function translationInput(proposal: AtlasProposal): string {
   return `<proposal>\n${JSON.stringify({
-    id: proposal.id,
     title: proposal.title,
     readme: proposal.readme,
+    stage: proposal.stage,
+    status: proposal.status,
+    edition: proposal.edition,
   })}\n</proposal>`;
 }
 
@@ -205,6 +209,7 @@ export function createProposalTranslator(
   const model = new ChatOpenAI({
     apiKey: config.apiKey,
     model: config.model,
+    temperature: config.temperature,
     useResponsesApi: false,
     ...(config.maxOutputTokens ? { maxTokens: config.maxOutputTokens } : {}),
     ...(config.baseURL ? { configuration: { baseURL: config.baseURL } } : {}),

@@ -9,7 +9,7 @@ description: 结合 TC39 提案成熟度与目标仓库实际使用的 TypeScrip
 
 ## 按需读取 TC39 Atlas
 
-把 TC39 Atlas 作为本产品提案阶段、状态、版本元数据、双语 README 和快速审查的权威入口：
+把 TC39 Atlas 作为本产品提案阶段、状态、版本元数据、双语 README 和提案速览的权威入口：
 
 - 索引：`https://bosens-china.github.io/tc39-atlas/llms.txt`
 

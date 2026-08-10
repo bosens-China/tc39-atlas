@@ -1,25 +1,33 @@
-import { createHash } from 'node:crypto';
-
 import pMap from 'p-map';
 
 import type {
   AtlasProposal,
-  QuickReview,
+  ProposalOverview,
   TranslationMetadata,
 } from './model.js';
 import {
   createProposalTranslator,
   translationConfig,
   translationFingerprint,
-  TRANSLATION_POLICY_VERSION,
 } from './translation-provider.js';
+import {
+  TRANSLATION_CONTRACT_VERSION,
+  translationContentHash,
+} from './translation-cache-key.js';
 
 export {
   translationConfig,
   translationFingerprint,
-  TRANSLATION_POLICY_VERSION,
 } from './translation-provider.js';
-const DEFAULT_CONCURRENCY = 10;
+export {
+  TRANSLATION_CONTRACT_VERSION,
+  TRANSLATION_TARGET_LANGUAGE,
+  translationCacheKey,
+  translationContentHash,
+  type TranslationCacheKeyOptions,
+  type TranslationContent,
+} from './translation-cache-key.js';
+const DEFAULT_CONCURRENCY = 100;
 
 interface TranslationOptions {
   concurrency?: number;
@@ -31,6 +39,7 @@ export interface TranslationConfig {
   apiKey: string;
   baseURL?: string;
   model: string;
+  temperature: number;
   maxOutputTokens?: number;
   concurrency: number;
   maxItems?: number;
@@ -39,7 +48,7 @@ export interface TranslationConfig {
 export interface TranslationOutput {
   titleZh: string;
   readmeZh: string;
-  quickReview: QuickReview;
+  overview: ProposalOverview;
   model: string;
   usage?: {
     inputTokens: number;
@@ -66,42 +75,21 @@ export interface TranslationRun {
   result: TranslationRunResult;
 }
 
-/** 阻止部分翻译失败的数据覆盖上一份完整发布结果。 */
-export function assertTranslationSucceeded(result: TranslationRunResult): void {
-  if (result.failed > 0) {
-    throw new Error(
-      `Translation failed for ${result.failed} proposal(s); dataset was not updated`,
-    );
-  }
-}
-
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export function articleSourceHash(
-  proposal: Pick<AtlasProposal, 'title' | 'readme'>,
-): string {
-  return createHash('sha256')
-    .update(JSON.stringify([proposal.title, proposal.readme]))
-    .digest('hex');
-}
-
-function needsTranslation(
-  proposal: AtlasProposal,
-  fingerprint: string,
-): boolean {
+function needsTranslation(proposal: AtlasProposal): boolean {
   const readmeIsValid = proposal.readme.trim()
     ? Boolean(proposal.readmeZh?.trim())
     : proposal.readmeZh === '';
   return !(
     proposal.titleZh?.trim() &&
     readmeIsValid &&
-    proposal.quickReview?.en.trim() &&
-    proposal.quickReview.zh.trim() &&
-    proposal.translation?.sourceHash === articleSourceHash(proposal) &&
-    proposal.translation.policyVersion === TRANSLATION_POLICY_VERSION &&
-    proposal.translation.translatorFingerprint === fingerprint
+    proposal.overview?.en.trim() &&
+    proposal.overview.zh.trim() &&
+    proposal.translation?.sourceHash === translationContentHash(proposal) &&
+    proposal.translation.policyVersion === TRANSLATION_CONTRACT_VERSION
   );
 }
 
@@ -111,8 +99,8 @@ function translationMetadata(
   fingerprint: string,
 ): TranslationMetadata {
   return {
-    sourceHash: articleSourceHash(proposal),
-    policyVersion: TRANSLATION_POLICY_VERSION,
+    sourceHash: translationContentHash(proposal),
+    policyVersion: TRANSLATION_CONTRACT_VERSION,
     translatorFingerprint: fingerprint,
     model: output.model,
     translatedAt: new Date().toISOString(),
@@ -136,11 +124,11 @@ export async function translatePendingProposals(
 
   const proposals = source.map((proposal) => ({
     ...proposal,
-    quickReview: proposal.quickReview ? { ...proposal.quickReview } : null,
+    overview: proposal.overview ? { ...proposal.overview } : null,
   }));
   const pending = proposals
     .map((proposal, index) => ({ proposal, index }))
-    .filter(({ proposal }) => needsTranslation(proposal, fingerprint));
+    .filter(({ proposal }) => needsTranslation(proposal));
   const candidates = options.maxItems
     ? pending.slice(0, options.maxItems)
     : pending;
@@ -160,7 +148,7 @@ export async function translatePendingProposals(
           ...proposal,
           titleZh: output.titleZh,
           readmeZh: output.readmeZh,
-          quickReview: output.quickReview,
+          overview: output.overview,
           translation: translationMetadata(proposal, output, fingerprint),
         };
         result.translated += 1;
@@ -191,9 +179,7 @@ export async function translatePendingProposalsFromEnv(
     return {
       proposals: [...source],
       result: {
-        pending: source.filter((proposal) =>
-          needsTranslation(proposal, fingerprint),
-        ).length,
+        pending: source.filter((proposal) => needsTranslation(proposal)).length,
         translated: 0,
         failed: 0,
         skipped: true,

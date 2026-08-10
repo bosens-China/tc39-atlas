@@ -172,14 +172,14 @@ function proposalBody(
     : language === 'en'
       ? '> The upstream repository does not provide a README.\n'
       : '';
-  const quickReview = proposal.quickReview?.[language];
-  const review = quickReview?.trim()
-    ? `:::tip ${copy[language].quickReview}\n${markdownText(quickReview)}\n:::`
+  const overview = proposal.overview?.[language];
+  const overviewBlock = overview?.trim()
+    ? `:::tip ${copy[language].proposalOverview}\n${markdownText(overview)}\n:::`
     : '';
   return [
     subtitle,
     proposalOverview(proposal, language, context),
-    review,
+    overviewBlock,
     missing,
     readme,
   ]

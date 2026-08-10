@@ -5,11 +5,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AtlasProposal } from './model.js';
 import type { TranslationOutput } from './translation.js';
 import {
-  TRANSLATION_POLICY_VERSION,
-  articleSourceHash,
-  assertTranslationSucceeded,
+  TRANSLATION_CONTRACT_VERSION,
   translatePendingProposals,
   translatePendingProposalsFromEnv,
+  translationContentHash,
   translationConfig,
   translationFingerprint,
 } from './translation.js';
@@ -31,7 +30,7 @@ function proposal(overrides: Partial<AtlasProposal> = {}): AtlasProposal {
     readme: '# Proposal A',
     readmeHash: 'a'.repeat(64),
     readmeZh: null,
-    quickReview: null,
+    overview: null,
     translation: null,
     ...overrides,
   };
@@ -41,9 +40,9 @@ function output(value: AtlasProposal): TranslationOutput {
   return {
     titleZh: `${value.title} 中文`,
     readmeZh: value.readme ? `# ${value.id} 中文` : '',
-    quickReview: {
-      en: `${value.id} quick review.`,
-      zh: `${value.id} 快速审查。`,
+    overview: {
+      en: `${value.id} proposal overview.`,
+      zh: `${value.id} 提案速览。`,
     },
     model: 'test-model',
   };
@@ -55,10 +54,10 @@ function translatedProposal(): AtlasProposal {
     ...value,
     titleZh: '提案 A',
     readmeZh: '# 已翻译',
-    quickReview: { en: 'Quick review.', zh: '快速审查。' },
+    overview: { en: 'Proposal overview.', zh: '提案速览。' },
     translation: {
-      sourceHash: articleSourceHash(value),
-      policyVersion: TRANSLATION_POLICY_VERSION,
+      sourceHash: translationContentHash(value),
+      policyVersion: TRANSLATION_CONTRACT_VERSION,
       translatorFingerprint: TEST_FINGERPRINT,
       model: 'old-model',
       translatedAt: '2026-08-01T00:00:00.000Z',
@@ -74,7 +73,8 @@ describe('proposal translation queue', () => {
     expect(config).toMatchObject({
       baseURL: 'https://api.deepseek.com',
       model: 'deepseek-v4-flash',
-      concurrency: 10,
+      temperature: 1,
+      concurrency: 100,
     });
     expect(config).not.toHaveProperty('maxOutputTokens');
     expect(config).not.toHaveProperty('requestTimeoutMs');
@@ -106,7 +106,7 @@ describe('proposal translation queue', () => {
     });
   });
 
-  it('fingerprints result-affecting translation settings', () => {
+  it('records runtime translation settings separately from the cache key', () => {
     const base = translationFingerprint({
       DEEPSEEK_API_KEY: 'test-key',
     });
@@ -157,16 +157,16 @@ describe('proposal translation queue', () => {
     expect(run.proposals[1]).toMatchObject({
       titleZh: 'Proposal A 中文',
       readmeZh: '# proposal-b 中文',
-      quickReview: { en: 'proposal-b quick review.' },
+      overview: { en: 'proposal-b proposal overview.' },
       translation: {
-        policyVersion: TRANSLATION_POLICY_VERSION,
+        policyVersion: TRANSLATION_CONTRACT_VERSION,
         model: 'test-model',
       },
     });
     expect(run.proposals[2]?.readmeZh).toBeNull();
   });
 
-  it('retranslates complete output when the translator fingerprint changes', async () => {
+  it('keeps an article cache hit when the translator fingerprint changes', async () => {
     const translate = vi.fn(async (value: AtlasProposal) => output(value));
     const nextFingerprint = translationFingerprint({
       DEEPSEEK_API_KEY: 'test-key',
@@ -179,24 +179,50 @@ describe('proposal translation queue', () => {
       { fingerprint: nextFingerprint },
     );
 
-    expect(translate).toHaveBeenCalledOnce();
+    expect(translate).not.toHaveBeenCalled();
     expect(run.proposals[0]?.translation?.translatorFingerprint).toBe(
-      nextFingerprint,
+      TEST_FINGERPRINT,
     );
   });
 
-  it('leaves provider retries to LangChain and isolates final failures', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const translate = vi.fn(async () => {
-      throw Object.assign(new Error('rate limited'), { status: 429 });
-    });
-    const run = await translatePendingProposals([proposal()], translate);
+  it('invalidates cached output when proposal maturity changes', async () => {
+    const translate = vi.fn(async (value: AtlasProposal) => output(value));
+    const changed = { ...translatedProposal(), stage: 2.7 as const };
+
+    const run = await translatePendingProposals([changed], translate);
 
     expect(translate).toHaveBeenCalledOnce();
-    expect(run.result.failed).toBe(1);
-    expect(() => assertTranslationSucceeded(run.result)).toThrow(
-      'dataset was not updated',
+    expect(run.result.translated).toBe(1);
+    expect(run.proposals[0]?.translation?.sourceHash).toBe(
+      translationContentHash(changed),
     );
+  });
+
+  it('keeps successful article results when another article fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const translate = vi.fn(async (value: AtlasProposal) => {
+      if (value.id === 'proposal-b') {
+        throw Object.assign(new Error('rate limited'), { status: 429 });
+      }
+      return output(value);
+    });
+    const run = await translatePendingProposals(
+      [proposal(), proposal({ id: 'proposal-b' })],
+      translate,
+    );
+
+    expect(translate).toHaveBeenCalledTimes(2);
+    expect(run.result).toMatchObject({ translated: 1, failed: 1 });
+    expect(run.proposals[0]?.translation).not.toBeNull();
+    expect(run.proposals[1]?.translation).toBeNull();
+
+    const retry = vi.fn(async (value: AtlasProposal) => output(value));
+    const nextRun = await translatePendingProposals(run.proposals, retry);
+    expect(retry).toHaveBeenCalledOnce();
+    expect(retry).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'proposal-b' }),
+    );
+    expect(nextRun.result).toMatchObject({ pending: 1, translated: 1 });
   });
 
   it('uses LangChain JSON Mode for default and compatible models', async () => {
@@ -214,7 +240,10 @@ describe('proposal translation queue', () => {
         body += chunk;
       });
       request.on('end', () => {
-        const parsedBody = JSON.parse(body) as { model?: string };
+        const parsedBody = JSON.parse(body) as {
+          model?: string;
+          temperature?: number;
+        };
         bodies.push(parsedBody);
         paths.push(request.url ?? '');
         response.writeHead(200, { 'content-type': 'application/json' });
@@ -237,9 +266,9 @@ describe('proposal translation queue', () => {
                       : JSON.stringify({
                           titleZh: '提案 A',
                           readmeZh: '# 中文译文',
-                          quickReview: {
-                            en: 'A short English review.',
-                            zh: '简短的中文审查。',
+                          overview: {
+                            en: 'A short English overview.',
+                            zh: '简短的中文速览。',
                           },
                         }),
                 },
@@ -272,14 +301,25 @@ describe('proposal translation queue', () => {
       expect(run.proposals[0]).toMatchObject({
         titleZh: '提案 A',
         readmeZh: '# 中文译文',
-        quickReview: { en: 'A short English review.' },
+        overview: { en: 'A short English overview.' },
       });
       expect(bodies[0]).toMatchObject({
         model: 'deepseek-v4-flash',
+        temperature: 1,
         response_format: { type: 'json_object' },
       });
       expect(bodies[0]).not.toHaveProperty('max_tokens');
       expect(bodies[0]).not.toHaveProperty('store');
+      const requestBody = bodies[0] as {
+        messages?: Array<{ role?: string; content?: string }>;
+      };
+      const userInput = requestBody.messages?.find(
+        (message) => message.role === 'user',
+      )?.content;
+      expect(userInput).toContain('"stage":2');
+      expect(userInput).toContain('"status":"active"');
+      expect(userInput).toContain('"edition":null');
+      expect(userInput).not.toContain('"id"');
 
       const compatibleRun = await translatePendingProposalsFromEnv(
         [proposal()],

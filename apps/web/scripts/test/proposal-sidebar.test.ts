@@ -1,4 +1,8 @@
-import type { AtlasDataset, AtlasProposal } from '@tc39-atlas/core/model';
+import {
+  DATASET_SCHEMA_VERSION,
+  type AtlasDataset,
+  type AtlasProposal,
+} from '@tc39-atlas/core/model';
 import { describe, expect, it } from 'vitest';
 
 import { proposalSidebar } from '../proposal-sidebar.js';
@@ -16,7 +20,7 @@ function proposal(id: string, title: string): AtlasProposal {
     readme: `# ${title}`,
     readmeHash: 'a'.repeat(64),
     readmeZh: null,
-    quickReview: null,
+    overview: null,
     translation: null,
   };
 }
@@ -25,10 +29,10 @@ describe('proposal sidebar', () => {
   it('groups proposals by edition and stage with newest additions first', () => {
     const newer = proposal('proposal-newer', 'Newer');
     newer.readmeZh = '# 较新';
-    newer.quickReview = { en: 'Newer review.', zh: '较新审查。' };
+    newer.overview = { en: 'Newer overview.', zh: '较新速览。' };
     const older = proposal('proposal-older', 'Older');
     const dataset: AtlasDataset = {
-      schemaVersion: 3,
+      schemaVersion: DATASET_SCHEMA_VERSION,
       generatedAt: '2026-08-09T00:00:00.000Z',
       proposals: [older, newer],
       changes: [
@@ -75,12 +79,12 @@ describe('proposal sidebar', () => {
     const noSource = proposal('proposal-no-source', 'No source');
     noSource.readme = '';
     noSource.readmeZh = '';
-    noSource.quickReview = {
+    noSource.overview = {
       en: 'The upstream README is unavailable.',
       zh: '上游 README 暂不可用。',
     };
     const dataset: AtlasDataset = {
-      schemaVersion: 3,
+      schemaVersion: DATASET_SCHEMA_VERSION,
       generatedAt: '2026-08-09T00:00:00.000Z',
       proposals: [noSource],
       changes: [],

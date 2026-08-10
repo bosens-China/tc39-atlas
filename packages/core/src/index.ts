@@ -18,7 +18,8 @@ export {
   proposalChangeKindSchema,
   proposalChangeKinds,
   proposalChangeSchema,
-  quickReviewSchema,
+  overviewSchema,
+  translationCacheEntrySchema,
   proposalSnapshotSchema,
   proposalStageSchema,
   proposalStages,
@@ -34,13 +35,14 @@ export {
   type ProposalChangeKind,
   type ProposalDetail,
   type ProposalFilter,
-  type QuickReview,
+  type ProposalOverview,
   type ProposalSnapshot,
   type ProposalStage,
   type ProposalStatus,
   type ProposalSummary,
   type SyncedProposal,
   type TranslationMetadata,
+  type TranslationCacheEntry,
 } from './model.js';
 export {
   getProposalChanges,
@@ -50,13 +52,17 @@ export {
 export { fetchTc39Proposals } from './source.js';
 export { detectProposalChanges, mergeProposalChanges } from './sync.js';
 export {
-  TRANSLATION_POLICY_VERSION,
-  articleSourceHash,
+  TRANSLATION_CONTRACT_VERSION,
+  TRANSLATION_TARGET_LANGUAGE,
   translatePendingProposals,
   translatePendingProposalsFromEnv,
+  translationCacheKey,
+  translationContentHash,
   translationFingerprint,
   type ProposalTranslator,
   type TranslationOutput,
+  type TranslationCacheKeyOptions,
+  type TranslationContent,
   type TranslationRun,
   type TranslationRunResult,
 } from './translation.js';

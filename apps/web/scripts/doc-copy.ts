@@ -27,7 +27,7 @@ export const copy = {
       '当前数据集还没有提案。完成同步后，这里会自动生成提案目录。',
     emptyChanges: '这个时间范围内没有记录到提案变化。',
     overview: '提案概览',
-    quickReview: '快速审查',
+    proposalOverview: '提案速览',
     stage: '阶段',
     status: '状态',
     edition: 'ECMAScript 版本',
@@ -52,8 +52,8 @@ export const copy = {
     emptyProposals:
       'The current dataset has no proposals. This index will be generated after synchronization.',
     emptyChanges: 'No proposal changes were recorded in this period.',
-    overview: 'Proposal overview',
-    quickReview: 'Quick review',
+    overview: 'Proposal details',
+    proposalOverview: 'Proposal overview',
     stage: 'Stage',
     status: 'Status',
     edition: 'ECMAScript edition',
@@ -121,7 +121,7 @@ export function hasMissingChineseTranslation(proposal: AtlasProposal): boolean {
   return (
     !proposal.titleZh?.trim() ||
     (Boolean(proposal.readme.trim()) && !proposal.readmeZh?.trim()) ||
-    !proposal.quickReview?.en.trim() ||
-    !proposal.quickReview.zh.trim()
+    !proposal.overview?.en.trim() ||
+    !proposal.overview.zh.trim()
   );
 }

@@ -42,8 +42,8 @@ function includesKeywords(
     proposal.titleZh ?? '',
     proposal.readme,
     proposal.readmeZh ?? '',
-    proposal.quickReview?.en ?? '',
-    proposal.quickReview?.zh ?? '',
+    proposal.overview?.en ?? '',
+    proposal.overview?.zh ?? '',
   ]
     .join('\n')
     .toLocaleLowerCase();

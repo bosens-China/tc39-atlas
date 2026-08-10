@@ -2,7 +2,10 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { AtlasDataset } from '@tc39-atlas/core/model';
+import {
+  DATASET_SCHEMA_VERSION,
+  type AtlasDataset,
+} from '@tc39-atlas/core/model';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { generateProposalDocs, normalizeReadme } from '../generate-docs.js';
@@ -19,7 +22,7 @@ afterEach(async () => {
 
 function sampleDataset(): AtlasDataset {
   return {
-    schemaVersion: 3,
+    schemaVersion: DATASET_SCHEMA_VERSION,
     generatedAt: '2026-08-08T00:00:00.000Z',
     changes: [
       {
@@ -58,7 +61,7 @@ function sampleDataset(): AtlasDataset {
         readme: '# Example\n\n[Spec](./spec.html)\n\n![Diagram](images/a.png)',
         readmeHash: 'a'.repeat(64),
         readmeZh: null,
-        quickReview: {
+        overview: {
           en: 'This proposal demonstrates an example capability.',
           zh: '该提案演示了一项示例能力。',
         },
@@ -154,14 +157,14 @@ describe('proposal documentation generator', () => {
     expect(zh).toContain('> **中文标题**：示例提案');
     expect(zh).toContain('暂无中文译文');
     expect(zh).toContain(':::info 提案概览\n\n- **阶段**');
-    expect(zh).toContain(':::tip 快速审查\n该提案演示了一项示例能力。');
+    expect(zh).toContain(':::tip 提案速览\n该提案演示了一项示例能力。');
     expect(zh).toContain(
       '[官方仓库](https://github.com/tc39/proposal-example)\n\n:::',
     );
     expect(en).toContain('title: "Example Proposal"');
     expect(en).toContain('\n# Example Proposal\n\n');
     expect(en).toContain(
-      ':::tip Quick review\nThis proposal demonstrates an example capability.',
+      ':::tip Proposal overview\nThis proposal demonstrates an example capability.',
     );
     expect(en).toContain('## Example');
     expect(byYear).toContain('search: false');

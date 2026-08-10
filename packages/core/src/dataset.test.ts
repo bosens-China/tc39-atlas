@@ -11,8 +11,9 @@ import { DATASET_SCHEMA_VERSION, parseAtlasDataset } from './model.js';
 import type { AtlasDataset, AtlasProposal, SyncedProposal } from './model.js';
 import { detectProposalChanges } from './sync.js';
 import {
-  TRANSLATION_POLICY_VERSION,
-  articleSourceHash,
+  TRANSLATION_CONTRACT_VERSION,
+  translationCacheKey,
+  translationContentHash,
 } from './translation.js';
 
 const synced: SyncedProposal = {
@@ -30,10 +31,10 @@ const translated: AtlasProposal = {
   ...synced,
   titleZh: '提案 A',
   readmeZh: '# 提案 A',
-  quickReview: { en: 'Proposal A review.', zh: '提案 A 审查。' },
+  overview: { en: 'Proposal A overview.', zh: '提案 A 速览。' },
   translation: {
-    sourceHash: articleSourceHash(synced),
-    policyVersion: TRANSLATION_POLICY_VERSION,
+    sourceHash: translationContentHash(synced),
+    policyVersion: TRANSLATION_CONTRACT_VERSION,
     model: 'test',
     translatedAt: synced.syncedAt,
   },
@@ -60,52 +61,94 @@ describe('published dataset', () => {
     expect(selectPreviousDataset(newer, older)).toBe(newer);
   });
 
-  it('reuses only complete article output matching source and policy', () => {
+  it('uses content fields and the contract version as cache conditions', () => {
     expect(mergePublishedProposals([translated], [synced])[0]).toMatchObject({
       titleZh: '提案 A',
       readmeZh: '# 提案 A',
-      quickReview: { en: 'Proposal A review.' },
+      overview: { en: 'Proposal A overview.' },
       translation: {
-        sourceHash: articleSourceHash(synced),
-        policyVersion: TRANSLATION_POLICY_VERSION,
+        sourceHash: translationContentHash(synced),
+        policyVersion: TRANSLATION_CONTRACT_VERSION,
       },
     });
+    const oldPolicy = {
+      ...translated,
+      translation: { ...translated.translation, policyVersion: '3' },
+    };
+    expect(
+      mergePublishedProposals([oldPolicy], [synced])[0]?.translation,
+    ).toBeNull();
     expect(
       mergePublishedProposals(
-        [
-          {
-            ...translated,
-            translation: { ...translated.translation, policyVersion: '3' },
-          },
-        ],
-        [synced],
+        [translated],
+        [{ ...synced, title: 'Proposal A changed' }],
       )[0],
     ).toMatchObject({
       titleZh: null,
       readmeZh: null,
-      quickReview: null,
+      overview: null,
       translation: null,
     });
   });
 
-  it('migrates a schema v2 snapshot into the new article shape', () => {
-    const legacy = {
-      schemaVersion: 2,
-      generatedAt: empty.generatedAt,
-      changes: [],
-      proposals: [
-        {
-          ...translated,
-          titleTranslation: translated.translation,
-          quickReview: undefined,
-        },
-      ],
+  it('rejects older dataset schemas instead of migrating them at runtime', () => {
+    expect(() =>
+      parseAtlasDataset({
+        schemaVersion: DATASET_SCHEMA_VERSION - 1,
+        generatedAt: empty.generatedAt,
+        proposals: [],
+        translations: {},
+        changes: [],
+      }),
+    ).toThrow();
+  });
+
+  it('removes translation cache entries without a current proposal reference', () => {
+    const stored = JSON.parse(
+      serializeDataset({ ...empty, proposals: [translated] }),
+    ) as {
+      translations: Record<string, unknown>;
+    };
+    const unusedHash = 'f'.repeat(64);
+    stored.translations[unusedHash] =
+      stored.translations[translationCacheKey(translated)];
+
+    const cleaned = JSON.parse(serializeDataset(parseAtlasDataset(stored))) as {
+      translations: Record<string, unknown>;
     };
 
-    expect(parseAtlasDataset(legacy)).toMatchObject({
-      schemaVersion: DATASET_SCHEMA_VERSION,
-      proposals: [{ titleZh: '提案 A', quickReview: null }],
-    });
+    expect(cleaned.translations).not.toHaveProperty(unusedHash);
+    expect(cleaned.translations).toHaveProperty(
+      translationCacheKey(translated),
+    );
+  });
+
+  it('rejects missing and stale translation references', () => {
+    const stored = JSON.parse(
+      serializeDataset({ ...empty, proposals: [translated] }),
+    ) as {
+      proposals: Array<{ translationRef: string | null }>;
+      translations: Record<string, unknown>;
+    };
+    const cacheKey = translationCacheKey(translated);
+    const entry = stored.translations[cacheKey];
+    if (!entry || !stored.proposals[0]) {
+      throw new Error('Expected serialized translation fixture');
+    }
+    delete stored.translations[cacheKey];
+    expect(() => parseAtlasDataset(stored)).toThrow(
+      'Invalid translation reference',
+    );
+
+    const staleKey = 'f'.repeat(64);
+    stored.proposals[0] = {
+      ...stored.proposals[0],
+      translationRef: staleKey,
+    };
+    stored.translations[staleKey] = entry;
+    expect(() => parseAtlasDataset(stored)).toThrow(
+      'Stale translation reference',
+    );
   });
 
   it('serializes a schema-valid dataset and hashes its exact bytes', () => {
@@ -116,8 +159,18 @@ describe('published dataset', () => {
     );
     const serialized = serializeDataset(dataset);
     const manifest = createDatasetManifest(dataset, serialized);
+    const stored = JSON.parse(serialized) as {
+      proposals: Array<Record<string, unknown>>;
+      translations: Record<string, unknown>;
+    };
 
     expect(parseAtlasDataset(JSON.parse(serialized))).toEqual(dataset);
+    expect(stored.proposals[0]).toMatchObject({
+      translationRef: translationCacheKey(translated),
+    });
+    expect(Object.keys(stored.translations)).toEqual([
+      translationCacheKey(translated),
+    ]);
     expect(dataset.changes).toEqual([]);
     expect(manifest.revision).toBe(manifest.dataset.sha256);
     expect(manifest.dataset.bytes).toBe(Buffer.byteLength(serialized));

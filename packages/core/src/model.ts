@@ -1,6 +1,12 @@
 import * as z from 'zod/v4';
 
-export const DATASET_SCHEMA_VERSION = 3;
+import {
+  TRANSLATION_CONTRACT_VERSION,
+  translationCacheKey,
+  translationContentHash,
+} from './translation-cache-key.js';
+
+export const DATASET_SCHEMA_VERSION = 6;
 export const proposalStages = [0, 1, 2, 2.7, 3, 4] as const;
 export const proposalStatuses = [
   'active',
@@ -47,7 +53,7 @@ export const translationMetadataSchema = z.object({
   translatedAt: z.string().datetime(),
 });
 
-export const quickReviewSchema = z.object({
+export const overviewSchema = z.object({
   en: z.string().trim().min(1),
   zh: z.string().trim().min(1),
 });
@@ -56,16 +62,29 @@ export const atlasProposalSchema = proposalSummarySchema.extend({
   readme: z.string(),
   readmeHash: z.string().regex(/^[a-f0-9]{64}$/),
   readmeZh: z.string().nullable(),
-  quickReview: quickReviewSchema.nullable(),
+  overview: overviewSchema.nullable(),
   translation: translationMetadataSchema.nullable(),
 });
 
-const legacyAtlasProposalSchema = proposalSummarySchema.extend({
-  titleTranslation: translationMetadataSchema.nullable(),
+const cachedTranslationMetadataSchema = translationMetadataSchema.omit({
+  sourceHash: true,
+});
+
+export const translationCacheEntrySchema = z.object({
+  titleZh: z.string().min(1),
+  readmeZh: z.string(),
+  overview: overviewSchema,
+  translation: cachedTranslationMetadataSchema,
+});
+
+const storedAtlasProposalSchema = proposalSnapshotSchema.extend({
+  syncedAt: z.string().datetime(),
   readme: z.string(),
   readmeHash: z.string().regex(/^[a-f0-9]{64}$/),
-  readmeZh: z.string().nullable(),
-  translation: translationMetadataSchema.nullable(),
+  translationRef: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .nullable(),
 });
 
 export const proposalChangeSchema = z.object({
@@ -77,17 +96,15 @@ export const proposalChangeSchema = z.object({
   occurredAt: z.string().datetime(),
 });
 
+// 磁盘格式只保存文章引用，解析后再还原为业务层使用的完整提案。
 export const atlasDatasetSchema = z.object({
   schemaVersion: z.literal(DATASET_SCHEMA_VERSION),
   generatedAt: z.string().datetime(),
-  proposals: z.array(atlasProposalSchema),
-  changes: z.array(proposalChangeSchema),
-});
-
-const legacyAtlasDatasetSchema = z.object({
-  schemaVersion: z.literal(2),
-  generatedAt: z.string().datetime(),
-  proposals: z.array(legacyAtlasProposalSchema),
+  proposals: z.array(storedAtlasProposalSchema),
+  translations: z.record(
+    z.string().regex(/^[a-f0-9]{64}$/),
+    translationCacheEntrySchema,
+  ),
   changes: z.array(proposalChangeSchema),
 });
 
@@ -108,11 +125,17 @@ export type ProposalChangeKind = z.infer<typeof proposalChangeKindSchema>;
 export type ProposalSnapshot = z.infer<typeof proposalSnapshotSchema>;
 export type ProposalSummary = z.infer<typeof proposalSummarySchema>;
 export type TranslationMetadata = z.infer<typeof translationMetadataSchema>;
-export type QuickReview = z.infer<typeof quickReviewSchema>;
+export type TranslationCacheEntry = z.infer<typeof translationCacheEntrySchema>;
+export type ProposalOverview = z.infer<typeof overviewSchema>;
 export type AtlasProposal = z.infer<typeof atlasProposalSchema>;
 export type ProposalDetail = AtlasProposal;
 export type ProposalChange = z.infer<typeof proposalChangeSchema>;
-export type AtlasDataset = z.infer<typeof atlasDatasetSchema>;
+export interface AtlasDataset {
+  schemaVersion: typeof DATASET_SCHEMA_VERSION;
+  generatedAt: string;
+  proposals: AtlasProposal[];
+  changes: ProposalChange[];
+}
 export type DatasetManifest = z.infer<typeof datasetManifestSchema>;
 export type KeywordMode = 'all' | 'any';
 
@@ -132,19 +155,54 @@ export interface SyncedProposal extends ProposalSnapshot {
   syncedAt: string;
 }
 
-export function parseAtlasDataset(value: unknown): AtlasDataset {
-  const current = atlasDatasetSchema.safeParse(value);
-  if (current.success) return current.data;
+interface ReferencedDatasetData {
+  generatedAt: string;
+  proposals: Array<z.infer<typeof storedAtlasProposalSchema>>;
+  translations: Record<string, TranslationCacheEntry>;
+  changes: ProposalChange[];
+}
 
-  const legacy = legacyAtlasDatasetSchema.parse(value);
+function hydrateReferencedDataset(data: ReferencedDatasetData): AtlasDataset {
   return {
     schemaVersion: DATASET_SCHEMA_VERSION,
-    generatedAt: legacy.generatedAt,
-    proposals: legacy.proposals.map((proposal) =>
-      atlasProposalSchema.parse({ ...proposal, quickReview: null }),
-    ),
-    changes: legacy.changes,
+    generatedAt: data.generatedAt,
+    proposals: data.proposals.map((proposal) => {
+      const cached = proposal.translationRef
+        ? data.translations[proposal.translationRef]
+        : undefined;
+      if (proposal.translationRef && !cached) {
+        throw new Error(
+          `Invalid translation reference for proposal ${proposal.id}`,
+        );
+      }
+      if (
+        proposal.translationRef &&
+        proposal.translationRef !== translationCacheKey(proposal)
+      ) {
+        throw new Error(
+          `Stale translation reference for proposal ${proposal.id}`,
+        );
+      }
+      return atlasProposalSchema.parse({
+        ...proposal,
+        titleZh: cached?.titleZh ?? null,
+        readmeZh: cached?.readmeZh ?? null,
+        overview: cached?.overview ?? null,
+        translation: cached
+          ? {
+              ...cached.translation,
+              sourceHash: translationContentHash(proposal),
+              policyVersion: TRANSLATION_CONTRACT_VERSION,
+            }
+          : null,
+      });
+    }),
+    changes: data.changes,
   };
+}
+
+export function parseAtlasDataset(value: unknown): AtlasDataset {
+  return hydrateReferencedDataset(atlasDatasetSchema.parse(value));
 }
 
 export function parseDatasetManifest(value: unknown): DatasetManifest {

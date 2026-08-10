@@ -25,7 +25,7 @@ function published(overrides: Partial<AtlasProposal> = {}): AtlasProposal {
     ...synced(),
     titleZh: null,
     readmeZh: null,
-    quickReview: null,
+    overview: null,
     translation: null,
     ...overrides,
   };
