@@ -11,7 +11,8 @@ on:
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
   schedule:
-    - cron: '17 2 * * *'
+    # 每天北京时间 04:00（UTC 前一天 20:00）
+    - cron: '0 20 * * *'
   workflow_dispatch:
 
 permissions:
