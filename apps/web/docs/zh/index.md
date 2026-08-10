@@ -25,8 +25,8 @@ features:
     details: 按 ECMAScript 年份或 TC39 阶段进入同一份提案资料。
     icon: '🧭'
     link: /proposals/
-  - title: Agent 接入
-    details: 通过 Skills 或本地 MCP，让 AI Agent 使用同一份 TC39 数据。
+  - title: 机器可读文档
+    details: 通过 llms.txt 与单页 Markdown，让 AI Agent 按需读取同一份 TC39 数据。
     icon: '🤖'
-    link: /agent/skills
+    link: /llms.txt
 ---

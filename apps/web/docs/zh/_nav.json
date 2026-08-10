@@ -1,10 +1,5 @@
 [
   { "text": "周刊动态", "link": "/changes/week", "activeMatch": "^/changes/" },
   { "text": "所有提案", "link": "/proposals/", "activeMatch": "^/proposals/" },
-  {
-    "text": "接入 AI Agent",
-    "link": "/agent/skills",
-    "activeMatch": "^/agent/"
-  },
   { "text": "关于", "link": "/about/", "activeMatch": "^/about/" }
 ]

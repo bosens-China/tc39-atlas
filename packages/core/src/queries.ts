@@ -83,7 +83,7 @@ function matchesFilter(
   );
 }
 
-// 查询规则集中在 core，确保静态 Web 与本地 MCP 使用同一语义。
+// 查询规则集中在 core，确保各个静态入口使用同一语义。
 export function searchProposals(
   proposals: readonly AtlasProposal[],
   filter: ProposalFilter = {},

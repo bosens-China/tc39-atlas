@@ -9,10 +9,5 @@
     "link": "/proposals/",
     "activeMatch": "^/en/proposals/"
   },
-  {
-    "text": "AI Agent",
-    "link": "/agent/skills",
-    "activeMatch": "^/en/agent/"
-  },
   { "text": "About", "link": "/about/", "activeMatch": "^/en/about/" }
 ]

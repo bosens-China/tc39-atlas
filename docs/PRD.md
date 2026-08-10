@@ -2,13 +2,13 @@
 
 ## 产品定位
 
-TC39 Atlas 面向关注 ECMAScript 提案的中文用户与 AI Agent。产品每天同步 TC39 提案，提供提案检索、中文 README 译文、中英文快速审查、周期变化和本地 MCP 查询。
+TC39 Atlas 面向关注 ECMAScript 提案的中文用户与 AI Agent。产品每天同步 TC39 提案，提供提案检索、中文 README 译文、中英文快速审查、周期变化、机器可读文档和兼容性感知的 ECMAScript 现代化 Skill。
 
 产品由三部分组成：
 
 - `packages/core` 负责提案模型、上游抓取、翻译、变化检测、数据集生成和内存查询。
 - `apps/web` 提供发布在 GitHub Pages 的 Rspress 双语文档站。
-- `apps/mcp` 提供本地 stdio MCP 服务；npm 包已完成打包能力，但尚未公开发布。
+- `.agents/skills/modernize-ecmascript` 是仓库对外提供的单一产品 Skill，指导 Agent 在项目兼容契约内采用最新稳定语法与 API。
 
 ## 数据来源与发布
 
@@ -18,7 +18,7 @@ TC39 Atlas 面向关注 ECMAScript 提案的中文用户与 AI Agent。产品每
 - 同步前校验官方 JSON Schema 指纹、Schema 有效性和产品消费字段。上游契约变化或数据无效时中止发布，保留上一份 Pages 数据。
 - README 明确不存在时允许保存空正文。其他下载失败会中止本轮生成，防止网络故障覆盖有效数据。
 - 发布产物由 `dataset.json` 和 `manifest.json` 组成。清单包含格式版本、内容版本、生成时间、字节数和 SHA-256。
-- 数据集保存当前提案、README、中文标题、中文译文、中英文快速审查和最近 366 天的变化事件，使 Web 可以生成完整的本年变化。首次成功同步只建立提案快照基线，不把同步前的存量提案记为变化；后续同步以上一份快照为锚点记录真实变化。Web 与 MCP 使用相同的稳定提案 ID 和数据语义。
+- 数据集保存当前提案、README、中文标题、中文译文、中英文快速审查和最近 366 天的变化事件，使 Web 可以生成完整的本年变化。首次成功同步只建立提案快照基线，不把同步前的存量提案记为变化；后续同步以上一份快照为锚点记录真实变化。所有静态入口使用相同的稳定提案 ID 和数据语义。
 - 当前规模使用单一完整数据集。只有真实体积或性能数据表明存在问题时，才引入分片或额外索引。
 
 ## 翻译与快速审查
@@ -35,25 +35,16 @@ TC39 Atlas 面向关注 ECMAScript 提案的中文用户与 AI Agent。产品每
 ## Web 产品体验
 
 - Rspress 提供文档外壳、左侧栏、右侧大纲、约定式路由、静态生成、内置全文搜索、语言切换和深浅主题。
-- 顶栏依次提供周刊动态、所有提案、接入 AI Agent 和关于，并由 Rspress 提供多语言切换。每个顶栏目录通过自己的 `_meta.json` 生成独立侧边栏。
-- 首页通过 Markdown frontmatter 使用 Rspress 内置 Home 布局；提案目录、周期动态、Agent 接入和详情使用文档页，不维护并行的 React 应用壳。
-- JSON 数据集是 Web 与 MCP 的唯一权威数据源。Web 构建前从数据集生成中英文提案目录、五个日历周期的变化页、详情 Markdown、年份与阶段上下文页，以及提案侧边栏元数据。
+- 顶栏依次提供周刊动态、所有提案和关于，并由 Rspress 提供多语言切换。每个顶栏目录通过自己的 `_meta.json` 生成独立侧边栏。
+- 首页通过 Markdown frontmatter 使用 Rspress 内置 Home 布局；提案目录、周期动态和详情使用文档页，不维护并行的 React 应用壳。
+- JSON 数据集是 Web 的唯一权威数据源。Web 构建前从数据集生成中英文提案目录、五个日历周期的变化页、详情 Markdown、年份与阶段上下文页，以及提案侧边栏元数据。
 - 每个提案保留 `/proposals/<id>` 中英文兼容 URL，并展示当前语言的快速审查、README、阶段、状态、版本、同步时间、语言切换和官方仓库入口。
 - 提案侧边栏始终显示官方英文标题，同时按 ECMAScript 年份和 TC39 阶段组织；年份使用 `/proposals/year/<year>/<id>`，阶段使用 `/proposals/stage/<stage>/<id>`，组内优先按首次记录时间倒序。文章级结构化结果缺失时，中文侧边栏使用 Rspress 内置 tag 标记“未译”；已完成翻译的空 README 不误报。上下文页不加入全文搜索，避免同一提案重复出现。
+- Rspress 同时发布中英文 `llms.txt`、`llms-full.txt` 和每个路由的 Markdown。`llms.txt` 作为 Agent 的默认索引，展示提案阶段、状态与 ECMAScript 年份，并排除年份、阶段上下文页造成的重复链接。Agent 按需读取单页 Markdown，不默认加载完整站点文本。
 - 周刊动态侧边栏提供今日、本周、本月、本季度和本年变化，按数据集生成时间的 UTC 日历边界筛选新增、阶段变化、完成、撤回和转为不活跃事件。
-- AI Agent 栏目提供 Skills 与 MCP 两个入口。Skills 从当前 GitHub 仓库安装；MCP 在 npm 发布前提供仓库本地运行说明。
+- Skill 作为仓库级能力由 README 说明，不在 `apps/web/docs` 内维护并行页面。首页的机器可读入口直接指向对应语言的 `llms.txt`。
 - 用户通过文档导航和 Rspress 全文搜索查找提案，不提供客户端组合筛选与分页。
 - Web 构建产物不依赖 REST API、数据库、浏览器端数据请求或常驻后端。Rspress `base` 负责 GitHub Pages 项目子路径。
-
-## 本地 MCP
-
-- MCP 将作为 `@tc39-atlas/mcp` 公共 npm 包分发，通过 `npx` 启动本地 stdio 服务；发布前可从仓库本地构建和调试。
-- MCP 只提供只读能力。`search_proposals` 支持阶段、ECMAScript 版本、状态和多个关键词；`get_proposals` 根据稳定 ID 返回摘要，或返回 README、中文译文和中英文快速审查详情。
-- 阶段、版本和提案资源分别通过 `tc39://stages/{stage}`、`tc39://editions/{edition}` 和 `tc39://proposals/{id}` 提供轻量浏览入口。
-- npm 包构建时内置当前有效数据和清单。首次运行按本地缓存、内置快照、远端下载的顺序选择启动数据，因此无缓存和离线场景也能立即提供服务；启动后在后台静默检查清单版本。
-- 只有内容版本变化，且字节数、SHA-256 和 Schema 均通过校验时，MCP 才原子替换缓存。网络或校验失败时继续使用旧缓存。
-- MCP 工具调用只读取本地内存快照，不在调用过程中访问外部网络。运行日志只写入 stderr，避免污染 stdio 协议。
-- 数据更新与程序更新相互独立。数据在 MCP 启动时检查，程序通过 npm 语义版本和 `npx @latest` 更新。
 
 ## 统一数据语义
 
@@ -64,17 +55,15 @@ TC39 Atlas 面向关注 ECMAScript 提案的中文用户与 AI Agent。产品每
 
 ## 部署、分发与质量边界
 
-- Web 和数据通过 GitHub Actions 部署到 GitHub Pages。Pull Request CI 和 Pages 发布统一执行格式、Lint、类型与测试检查；Pages 工作流再同步数据并生成 Rspress 的 `doc_build` 产物。同步或构建失败时不覆盖上一份成功版本。
-- MCP 计划只通过 npm 分发，不提供二进制、MCPB、Docker 镜像或远程 MCP 服务。
-- npm 自动发布当前禁用；未来启用时使用 GitHub Actions OIDC Trusted Publishing，不在仓库保存长期写 token。
-- TypeScript 禁止显式 `any`。数据模型、生成、查询、翻译、缓存和 MCP 契约使用 Vitest 覆盖。
-- 用户运行方式、环境变量和 Pages 设置以[仓库 README](../README.md)为准；npm 首次发布见[后续计划](./plans/npm-publishing/PRD.md)。
+- Web、数据和机器可读 Markdown 通过 GitHub Actions 部署到 GitHub Pages。Pull Request CI 和 Pages 发布统一执行格式、Lint、类型与测试检查；Pages 工作流再同步数据并生成 Rspress 的 `doc_build` 产物。同步或构建失败时不覆盖上一份成功版本。
+- TypeScript 禁止显式 `any`。数据模型、生成、查询和翻译契约使用 Vitest 覆盖。
+- 用户运行方式、环境变量和 Pages 设置以[仓库 README](../README.md)为准。
 
 ## 非目标
 
 - 不抓取或展示会议纪要、Issue 和 Pull Request。
-- 不向 MCP 暴露历史变化、任意 SQL 或 README 文本差异解释。
 - 不用中文译文替代 TC39 原始内容、官方状态或原仓库。
-- 不提供 REST API、远程 Streamable HTTP MCP、PostgreSQL 或常驻应用服务器。
-- 不让每个 MCP 客户端逐仓库抓取上游。
+- 不提供本地 MCP、CLI、REST API、PostgreSQL 或常驻应用服务器。
+- 不在 Skill 中维护容易过期的工具版本兼容矩阵；具体能力以目标仓库与对应官方文档为证据。
+- 不在证据不足时默默提高 Node、浏览器、构建输出或 TypeScript 基线。
 - 不预先引入 Redis、消息队列、数据分片、通用翻译缓存表、分块翻译器或 Batch API。
