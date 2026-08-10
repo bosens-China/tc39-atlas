@@ -52,7 +52,6 @@ export { detectProposalChanges, mergeProposalChanges } from './sync.js';
 export {
   TRANSLATION_POLICY_VERSION,
   articleSourceHash,
-  isRetryableTranslationError,
   translatePendingProposals,
   translatePendingProposalsFromEnv,
   translationFingerprint,

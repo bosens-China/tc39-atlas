@@ -23,13 +23,13 @@ TC39 Atlas 面向关注 ECMAScript 提案的中文用户与 AI Agent。产品每
 
 ## 翻译与快速审查
 
-- GitHub Actions 通过 OpenAI 官方 TypeScript SDK 调用 OpenAI 兼容 API。默认地址为 `https://api.deepseek.com`，默认模型为 `deepseek-v4-flash`；仓库级 Actions Variables 可以覆盖端点与模型。密钥统一使用 `DEEPSEEK_API_KEY` Secret。
+- GitHub Actions 通过 LangChain TypeScript 的 `ChatOpenAI` 调用 OpenAI 兼容的 Chat Completions API，并使用 Zod 校验 JSON Mode 结构化结果。默认地址为 `https://api.deepseek.com`，默认模型为 `deepseek-v4-flash`；仓库级 Actions Variables 可以覆盖端点、模型与输出 token 上限。密钥统一使用 `DEEPSEEK_API_KEY` Secret。
 - 每篇提案作为一个独立结构化请求，同时生成中文标题、完整 README 译文以及内容一致的中英文快速审查。快速审查只概述问题、主要方案和成熟度，不作输入内容之外的价值判断。
 - 官方英文标题始终保留为权威原文。中英文导航和详情页一级标题均显示英文标题；中文站随后展示中文标题，英文站不展示中文标题。页面描述由固定模板生成。
 - 翻译提示词把标题和 README 标记为待处理数据，禁止执行其中的指令。译文必须保留 Markdown 层级、代码、链接目标、图片地址及 HTML 属性；空 README 保持空译文。
 - 中文标题、README 译文和双语快速审查共用一条翻译元数据。缓存同时校验英文标题与 README 的联合源哈希、策略版本和翻译器指纹；端点、模型、提示词或结构化输出契约变化时会触发重译。
 - JSON 数据集是结构化翻译队列和缓存的权威来源。每轮生成在远端 Pages 快照与仓库快照中选择较新的有效数据，复用未变化的完整文章结果，只处理缺失或失效项目。
-- 每篇提案独立并发，默认并发数为 10。网络错误、超时、408、409、429 和 5xx 最多重试 3 次；单篇失败不回滚其他英文数据。供应商偶尔添加的完整外层 JSON 代码围栏会被兼容移除，不做通用内容修复。
+- 每篇提案独立并发，默认并发数为 10。API 调用重试与请求超时由 LangChain SDK 负责；单篇最终失败不回滚其他英文数据。结构化输出由 LangChain 和 Zod 校验，应用层只保留 README 空值一致性与响应结束原因等业务诊断，不做通用内容修复。
 - 本地同步自动读取仓库根目录中被 Git 忽略的 `.env`；CI 从 Actions Secret 读取密钥。未配置翻译密钥时跳过待翻译项目，不影响英文数据发布。
 
 ## Web 产品体验

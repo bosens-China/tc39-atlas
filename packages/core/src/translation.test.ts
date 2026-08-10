@@ -70,12 +70,14 @@ afterEach(() => vi.restoreAllMocks());
 
 describe('proposal translation queue', () => {
   it('uses DeepSeek defaults', () => {
-    expect(translationConfig({ DEEPSEEK_API_KEY: 'test-key' })).toMatchObject({
+    const config = translationConfig({ DEEPSEEK_API_KEY: 'test-key' });
+    expect(config).toMatchObject({
       baseURL: 'https://api.deepseek.com',
       model: 'deepseek-v4-flash',
       concurrency: 10,
-      requestTimeoutMs: 120_000,
     });
+    expect(config).not.toHaveProperty('maxOutputTokens');
+    expect(config).not.toHaveProperty('requestTimeoutMs');
   });
 
   it('accepts repository overrides and ignores empty values', () => {
@@ -84,10 +86,12 @@ describe('proposal translation queue', () => {
         DEEPSEEK_API_KEY: 'test-key',
         TRANSLATION_BASE_URL: 'https://openai-compatible.example/v1',
         TRANSLATION_MODEL: 'compatible-model',
+        TRANSLATION_MAX_OUTPUT_TOKENS: '64',
       }),
     ).toMatchObject({
       baseURL: 'https://openai-compatible.example/v1',
       model: 'compatible-model',
+      maxOutputTokens: 64,
     });
     expect(
       translationConfig({
@@ -117,6 +121,12 @@ describe('proposal translation queue', () => {
       translationFingerprint({
         DEEPSEEK_API_KEY: 'test-key',
         TRANSLATION_MODEL: 'another-model',
+      }),
+    ).not.toBe(base);
+    expect(
+      translationFingerprint({
+        DEEPSEEK_API_KEY: 'test-key',
+        TRANSLATION_MAX_OUTPUT_TOKENS: '64',
       }),
     ).not.toBe(base);
   });
@@ -175,42 +185,26 @@ describe('proposal translation queue', () => {
     );
   });
 
-  it('retries transient errors twice but not permanent errors', async () => {
-    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  it('leaves provider retries to LangChain and isolates final failures', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    let transientAttempts = 0;
-    const transient = await translatePendingProposals(
-      [proposal()],
-      async (value) => {
-        transientAttempts += 1;
-        if (transientAttempts < 3) {
-          throw Object.assign(new Error('rate limited'), { status: 429 });
-        }
-        return output(value);
-      },
-      { retryMinTimeout: 1 },
-    );
-    let permanentAttempts = 0;
-    const permanent = await translatePendingProposals(
-      [proposal()],
-      async () => {
-        permanentAttempts += 1;
-        throw Object.assign(new Error('unauthorized'), { status: 401 });
-      },
-      { retryMinTimeout: 1 },
-    );
+    const translate = vi.fn(async () => {
+      throw Object.assign(new Error('rate limited'), { status: 429 });
+    });
+    const run = await translatePendingProposals([proposal()], translate);
 
-    expect(transientAttempts).toBe(3);
-    expect(transient.result.translated).toBe(1);
-    expect(permanentAttempts).toBe(1);
-    expect(permanent.result.failed).toBe(1);
-    expect(() => assertTranslationSucceeded(permanent.result)).toThrow(
+    expect(translate).toHaveBeenCalledOnce();
+    expect(run.result.failed).toBe(1);
+    expect(() => assertTranslationSucceeded(run.result)).toThrow(
       'dataset was not updated',
     );
   });
 
-  it('uses Responses by default and Chat Completions for compatible models', async () => {
+  it('uses LangChain JSON Mode for default and compatible models', async () => {
     vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const errorLog = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
     const bodies: unknown[] = [];
     const paths: string[] = [];
     const server = createServer((request, response) => {
@@ -220,76 +214,40 @@ describe('proposal translation queue', () => {
         body += chunk;
       });
       request.on('end', () => {
-        bodies.push(JSON.parse(body) as unknown);
+        const parsedBody = JSON.parse(body) as { model?: string };
+        bodies.push(parsedBody);
         paths.push(request.url ?? '');
         response.writeHead(200, { 'content-type': 'application/json' });
-        if (request.url === '/chat/completions') {
-          response.end(
-            JSON.stringify({
-              id: 'chat-1',
-              object: 'chat.completion',
-              created: 1,
-              model: 'compatible-model',
-              choices: [
-                {
-                  index: 0,
-                  finish_reason: 'stop',
-                  message: {
-                    role: 'assistant',
-                    content: JSON.stringify({
-                      titleZh: '提案 A',
-                      readmeZh: '# 中文译文',
-                      quickReview: {
-                        en: 'A short English review.',
-                        zh: '简短的中文审查。',
-                      },
-                    }),
-                  },
-                },
-              ],
-              usage: {
-                prompt_tokens: 10,
-                completion_tokens: 20,
-                total_tokens: 30,
-              },
-            }),
-          );
-          return;
-        }
         response.end(
           JSON.stringify({
-            id: 'response-1',
-            object: 'response',
-            created_at: 1,
-            status: 'completed',
-            model: 'deepseek-v4-flash',
-            output: [
+            id: 'chat-1',
+            object: 'chat.completion',
+            created: 1,
+            model: 'compatible-model',
+            choices: [
               {
-                id: 'message-1',
-                type: 'message',
-                status: 'completed',
-                role: 'assistant',
-                content: [
-                  {
-                    type: 'output_text',
-                    text: `\`\`\`json\n${JSON.stringify({
-                      titleZh: '提案 A',
-                      readmeZh: '# 中文译文',
-                      quickReview: {
-                        en: 'A short English review.',
-                        zh: '简短的中文审查。',
-                      },
-                    })}\n\`\`\``,
-                    annotations: [],
-                  },
-                ],
+                index: 0,
+                finish_reason:
+                  parsedBody.model === 'length-model' ? 'length' : 'stop',
+                message: {
+                  role: 'assistant',
+                  content:
+                    parsedBody.model === 'invalid-model'
+                      ? '{"titleZh":'
+                      : JSON.stringify({
+                          titleZh: '提案 A',
+                          readmeZh: '# 中文译文',
+                          quickReview: {
+                            en: 'A short English review.',
+                            zh: '简短的中文审查。',
+                          },
+                        }),
+                },
               },
             ],
             usage: {
-              input_tokens: 10,
-              input_tokens_details: { cached_tokens: 2 },
-              output_tokens: 20,
-              output_tokens_details: { reasoning_tokens: 0 },
+              prompt_tokens: 10,
+              completion_tokens: 20,
               total_tokens: 30,
             },
           }),
@@ -318,28 +276,50 @@ describe('proposal translation queue', () => {
       });
       expect(bodies[0]).toMatchObject({
         model: 'deepseek-v4-flash',
-        reasoning: { effort: 'none' },
-        store: false,
-        text: {
-          format: {
-            type: 'json_schema',
-            name: 'proposal_translation',
-            strict: true,
-          },
-        },
+        response_format: { type: 'json_object' },
       });
-      expect(bodies[0]).not.toHaveProperty('max_output_tokens');
+      expect(bodies[0]).not.toHaveProperty('max_tokens');
+      expect(bodies[0]).not.toHaveProperty('store');
 
       const compatibleRun = await translatePendingProposalsFromEnv(
         [proposal()],
-        { ...env, TRANSLATION_MODEL: 'compatible-model' },
+        {
+          ...env,
+          TRANSLATION_MODEL: 'compatible-model',
+          TRANSLATION_MAX_OUTPUT_TOKENS: '64',
+        },
       );
       expect(compatibleRun.result.translated).toBe(1);
       expect(bodies[1]).toMatchObject({
         model: 'compatible-model',
+        max_tokens: 64,
         response_format: { type: 'json_object' },
       });
-      expect(paths).toEqual(['/responses', '/chat/completions']);
+      expect(JSON.stringify(bodies[0])).toContain('结构示例');
+
+      const truncatedRun = await translatePendingProposalsFromEnv(
+        [proposal()],
+        { ...env, TRANSLATION_MODEL: 'length-model' },
+      );
+      expect(truncatedRun.result.failed).toBe(1);
+      expect(JSON.stringify(errorLog.mock.calls)).toContain(
+        'finish_reason is length',
+      );
+
+      const invalidRun = await translatePendingProposalsFromEnv([proposal()], {
+        ...env,
+        TRANSLATION_MODEL: 'invalid-model',
+      });
+      expect(invalidRun.result.failed).toBe(1);
+      expect(JSON.stringify(errorLog.mock.calls)).toContain(
+        'does not match the schema',
+      );
+      expect(paths).toEqual([
+        '/chat/completions',
+        '/chat/completions',
+        '/chat/completions',
+        '/chat/completions',
+      ]);
     } finally {
       await new Promise<void>((resolve, reject) =>
         server.close((error) => (error ? reject(error) : resolve())),

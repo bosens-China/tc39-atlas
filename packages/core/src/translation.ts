@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto';
 
 import pMap from 'p-map';
-import pRetry from 'p-retry';
 
 import type {
   AtlasProposal,
@@ -10,7 +9,6 @@ import type {
 } from './model.js';
 import {
   createProposalTranslator,
-  InvalidTranslationResponseError,
   translationConfig,
   translationFingerprint,
   TRANSLATION_POLICY_VERSION,
@@ -22,22 +20,19 @@ export {
   TRANSLATION_POLICY_VERSION,
 } from './translation-provider.js';
 const DEFAULT_CONCURRENCY = 10;
-const DEFAULT_RETRIES = 2;
 
 interface TranslationOptions {
   concurrency?: number;
   fingerprint?: string;
   maxItems?: number;
-  retries?: number;
-  retryMinTimeout?: number;
 }
 
 export interface TranslationConfig {
   apiKey: string;
   baseURL?: string;
   model: string;
+  maxOutputTokens?: number;
   concurrency: number;
-  requestTimeoutMs: number;
   maxItems?: number;
 }
 
@@ -78,25 +73,6 @@ export function assertTranslationSucceeded(result: TranslationRunResult): void {
       `Translation failed for ${result.failed} proposal(s); dataset was not updated`,
     );
   }
-}
-
-function errorStatus(error: unknown): number | undefined {
-  if (typeof error !== 'object' || error === null || !('status' in error)) {
-    return undefined;
-  }
-  return typeof error.status === 'number' ? error.status : undefined;
-}
-
-export function isRetryableTranslationError(error: unknown): boolean {
-  if (error instanceof InvalidTranslationResponseError) return false;
-  const status = errorStatus(error);
-  return (
-    status === undefined ||
-    status === 408 ||
-    status === 409 ||
-    status === 429 ||
-    status >= 500
-  );
 }
 
 function errorMessage(error: unknown): string {
@@ -150,12 +126,9 @@ export async function translatePendingProposals(
   options: TranslationOptions = {},
 ): Promise<TranslationRun> {
   const concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
-  const retries = options.retries ?? DEFAULT_RETRIES;
-  const retryMinTimeout = options.retryMinTimeout ?? 1_000;
   const fingerprint = options.fingerprint ?? translationFingerprint();
   if (
     concurrency < 1 ||
-    retries < 0 ||
     (options.maxItems !== undefined && options.maxItems < 1)
   ) {
     throw new Error('Invalid translation run options');
@@ -182,24 +155,7 @@ export async function translatePendingProposals(
     candidates,
     async ({ proposal, index }) => {
       try {
-        const output = await pRetry(() => translate(proposal), {
-          retries,
-          minTimeout: retryMinTimeout,
-          randomize: true,
-          shouldRetry: ({ error }) => isRetryableTranslationError(error),
-          onFailedAttempt: ({ error, attemptNumber, retriesLeft }) => {
-            console.warn(
-              JSON.stringify({
-                level: 'warn',
-                event: 'proposal_translation_retry',
-                proposal_id: proposal.id,
-                attempt: attemptNumber,
-                retries_left: retriesLeft,
-                error: errorMessage(error),
-              }),
-            );
-          },
-        });
+        const output = await translate(proposal);
         proposals[index] = {
           ...proposal,
           titleZh: output.titleZh,

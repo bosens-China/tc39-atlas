@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import OpenAI from 'openai';
+import { ChatOpenAI } from '@langchain/openai';
 import * as z from 'zod/v4';
 
 import type { AtlasProposal } from './model.js';
@@ -13,9 +13,8 @@ import type {
 const DEFAULT_BASE_URL = 'https://api.deepseek.com';
 const DEFAULT_MODEL = 'deepseek-v4-flash';
 const DEFAULT_CONCURRENCY = 10;
-const DEFAULT_REQUEST_TIMEOUT_MS = 120_000;
 
-export const TRANSLATION_POLICY_VERSION = '4';
+export const TRANSLATION_POLICY_VERSION = '6';
 
 const translationOutputSchema = z.object({
   titleZh: z.string().trim().min(1),
@@ -26,25 +25,6 @@ const translationOutputSchema = z.object({
   }),
 });
 
-const TRANSLATION_JSON_SCHEMA = {
-  type: 'object',
-  properties: {
-    titleZh: { type: 'string' },
-    readmeZh: { type: 'string' },
-    quickReview: {
-      type: 'object',
-      properties: {
-        en: { type: 'string' },
-        zh: { type: 'string' },
-      },
-      required: ['en', 'zh'],
-      additionalProperties: false,
-    },
-  },
-  required: ['titleZh', 'readmeZh', 'quickReview'],
-  additionalProperties: false,
-} as const;
-
 const TRANSLATION_INSTRUCTIONS = `你是 TC39 提案文档翻译与快速审查助手。每次只处理一个提案，并返回指定的 JSON 对象。
 
 字段要求：
@@ -52,6 +32,9 @@ const TRANSLATION_INSTRUCTIONS = `你是 TC39 提案文档翻译与快速审查�
 2. readmeZh：把英文 README 完整翻译为准确、自然的简体中文；如果原 README 为空，必须返回空字符串。
 3. quickReview.en：用 2 至 4 句英文快速说明提案解决的问题、主要方案和当前成熟度，只能依据输入内容，不作价值判断。
 4. quickReview.zh：与英文快速审查信息一致的自然简体中文版本，不得增删事实。
+
+仅返回 JSON，不要添加 Markdown 代码围栏或其他文字。结构示例：
+{"titleZh":"提案标题","readmeZh":"# 完整译文","quickReview":{"en":"English review.","zh":"中文审查。"}}
 
 翻译规则：
 1. 不得遗漏、总结、合并、重排或新增 README 内容。
@@ -65,50 +48,8 @@ const TRANSLATION_INSTRUCTIONS = `你是 TC39 提案文档翻译与快速审查�
 interface TranslationProfile {
   baseURL?: string;
   model: string;
+  maxOutputTokens?: number;
 }
-
-function usesChatCompletions(model: string): boolean {
-  return model !== DEFAULT_MODEL;
-}
-
-function translationProfile(env: NodeJS.ProcessEnv): TranslationProfile {
-  const baseURL = env.TRANSLATION_BASE_URL || DEFAULT_BASE_URL;
-  return {
-    baseURL,
-    model: env.TRANSLATION_MODEL || DEFAULT_MODEL,
-  };
-}
-
-/** 把所有会影响翻译结果的配置收敛为稳定指纹，避免只靠人工升级策略版本。 */
-export function translationFingerprint(
-  env: NodeJS.ProcessEnv = process.env,
-): string {
-  const profile = translationProfile(env);
-  const requestMode = usesChatCompletions(profile.model)
-    ? { api: 'chat.completions', responseFormat: 'json_object' }
-    : {
-        api: 'responses',
-        responseFormat: 'strict_json_schema',
-        ...(profile.model === 'deepseek-v4-flash'
-          ? {
-              reasoningEffort: 'none',
-            }
-          : {}),
-      };
-  return createHash('sha256')
-    .update(
-      JSON.stringify([
-        TRANSLATION_POLICY_VERSION,
-        profile,
-        requestMode,
-        TRANSLATION_INSTRUCTIONS,
-        TRANSLATION_JSON_SCHEMA,
-      ]),
-    )
-    .digest('hex');
-}
-
-export class InvalidTranslationResponseError extends Error {}
 
 function positiveInteger(
   value: string | undefined,
@@ -123,24 +64,60 @@ function positiveInteger(
   return parsed;
 }
 
+function translationProfile(env: NodeJS.ProcessEnv): TranslationProfile {
+  const maxOutputTokens = env.TRANSLATION_MAX_OUTPUT_TOKENS
+    ? positiveInteger(
+        env.TRANSLATION_MAX_OUTPUT_TOKENS,
+        1,
+        'TRANSLATION_MAX_OUTPUT_TOKENS',
+      )
+    : undefined;
+  return {
+    baseURL: env.TRANSLATION_BASE_URL || DEFAULT_BASE_URL,
+    model: env.TRANSLATION_MODEL || DEFAULT_MODEL,
+    ...(maxOutputTokens ? { maxOutputTokens } : {}),
+  };
+}
+
+/** 把所有会影响翻译结果的配置收敛为稳定指纹，避免只靠人工升级策略版本。 */
+export function translationFingerprint(
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  return createHash('sha256')
+    .update(
+      JSON.stringify([
+        TRANSLATION_POLICY_VERSION,
+        translationProfile(env),
+        {
+          sdk: 'langchain',
+          api: 'chat.completions',
+          responseFormat: 'json_object',
+        },
+        TRANSLATION_INSTRUCTIONS,
+        z.toJSONSchema(translationOutputSchema),
+      ]),
+    )
+    .digest('hex');
+}
+
+export class InvalidTranslationResponseError extends Error {}
+
 export function translationConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): TranslationConfig | null {
   const apiKey = env.DEEPSEEK_API_KEY;
   if (!apiKey) return null;
-  const profile = translationProfile(env);
   const maxItems = env.TRANSLATION_MAX_ITEMS
     ? positiveInteger(env.TRANSLATION_MAX_ITEMS, 1, 'TRANSLATION_MAX_ITEMS')
     : undefined;
   return {
     apiKey,
-    ...profile,
+    ...translationProfile(env),
     concurrency: positiveInteger(
       env.TRANSLATION_CONCURRENCY,
       DEFAULT_CONCURRENCY,
       'TRANSLATION_CONCURRENCY',
     ),
-    requestTimeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
     ...(maxItems ? { maxItems } : {}),
   };
 }
@@ -153,42 +130,61 @@ function translationInput(proposal: AtlasProposal): string {
   })}\n</proposal>`;
 }
 
-function parseOutput(
-  value: string,
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function recordField(
+  value: unknown,
+  field: string,
+): Record<string, unknown> | undefined {
+  return asRecord(asRecord(value)?.[field]);
+}
+
+function stringField(value: unknown, field: string): string | undefined {
+  const candidate = asRecord(value)?.[field];
+  return typeof candidate === 'string' ? candidate : undefined;
+}
+
+function numberField(value: unknown, field: string): number | undefined {
+  const candidate = asRecord(value)?.[field];
+  return typeof candidate === 'number' ? candidate : undefined;
+}
+
+function validateOutput(
+  value: z.infer<typeof translationOutputSchema> | null,
   proposal: AtlasProposal,
 ): Omit<TranslationOutput, 'model' | 'usage'> {
-  const trimmed = value.trim();
-  const jsonText = trimmed.startsWith('```')
-    ? trimmed.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
-    : trimmed;
-  let json: unknown;
-  try {
-    json = JSON.parse(jsonText) as unknown;
-  } catch {
-    throw new InvalidTranslationResponseError(
-      'Translation output is not valid JSON',
-    );
-  }
-  const parsed = translationOutputSchema.safeParse(json);
-  if (!parsed.success) {
+  if (!value) {
     throw new InvalidTranslationResponseError(
       'Translation output does not match the schema',
     );
   }
-  if (proposal.readme.trim() && !parsed.data.readmeZh.trim()) {
+  if (proposal.readme.trim() && !value.readmeZh.trim()) {
     throw new InvalidTranslationResponseError('README translation is empty');
   }
-  if (!proposal.readme.trim() && parsed.data.readmeZh !== '') {
+  if (!proposal.readme.trim() && value.readmeZh !== '') {
     throw new InvalidTranslationResponseError(
       'Empty README translation must stay empty',
     );
   }
-  return parsed.data;
+  return value;
 }
 
-function numberField(value: object, field: string): number | undefined {
-  const candidate = (value as Record<string, unknown>)[field];
-  return typeof candidate === 'number' ? candidate : undefined;
+function responseUsage(raw: unknown): TranslationOutput['usage'] {
+  const usage = recordField(raw, 'usage_metadata');
+  if (!usage) return undefined;
+  const inputDetails = recordField(usage, 'input_token_details');
+  const outputDetails = recordField(usage, 'output_token_details');
+  return {
+    inputTokens: numberField(usage, 'input_tokens') ?? 0,
+    outputTokens: numberField(usage, 'output_tokens') ?? 0,
+    cachedTokens: numberField(inputDetails, 'cache_read') ?? 0,
+    cacheWriteTokens: numberField(inputDetails, 'cache_creation') ?? 0,
+    reasoningTokens: numberField(outputDetails, 'reasoning') ?? 0,
+  };
 }
 
 function logTranslation(proposalId: string, output: TranslationOutput): void {
@@ -206,84 +202,35 @@ function logTranslation(proposalId: string, output: TranslationOutput): void {
 export function createProposalTranslator(
   config: TranslationConfig,
 ): ProposalTranslator {
-  const client = new OpenAI({
+  const model = new ChatOpenAI({
     apiKey: config.apiKey,
-    ...(config.baseURL ? { baseURL: config.baseURL } : {}),
-    maxRetries: 0,
-    timeout: config.requestTimeoutMs,
+    model: config.model,
+    useResponsesApi: false,
+    ...(config.maxOutputTokens ? { maxTokens: config.maxOutputTokens } : {}),
+    ...(config.baseURL ? { configuration: { baseURL: config.baseURL } } : {}),
+  });
+  const structuredModel = model.withStructuredOutput(translationOutputSchema, {
+    name: 'proposal_translation',
+    method: 'jsonMode',
+    includeRaw: true,
   });
 
   return async (proposal) => {
-    let content: string;
-    let model: string;
-    let usage: TranslationOutput['usage'];
-    if (usesChatCompletions(config.model)) {
-      const response = await client.chat.completions.create({
-        model: config.model,
-        messages: [
-          { role: 'system', content: TRANSLATION_INSTRUCTIONS },
-          { role: 'user', content: translationInput(proposal) },
-        ],
-        response_format: { type: 'json_object' },
-      });
-      content = response.choices[0]?.message.content ?? '';
-      model = response.model;
-      if (response.usage) {
-        usage = {
-          inputTokens: response.usage.prompt_tokens,
-          outputTokens: response.usage.completion_tokens,
-          cachedTokens:
-            numberField(response.usage, 'prompt_cache_hit_tokens') ??
-            response.usage.prompt_tokens_details?.cached_tokens ??
-            0,
-          cacheWriteTokens: 0,
-          reasoningTokens:
-            response.usage.completion_tokens_details?.reasoning_tokens ?? 0,
-        };
-      }
-    } else {
-      const response = await client.responses.create({
-        model: config.model,
-        instructions: TRANSLATION_INSTRUCTIONS,
-        input: translationInput(proposal),
-        text: {
-          format: {
-            type: 'json_schema',
-            name: 'proposal_translation',
-            strict: true,
-            schema: TRANSLATION_JSON_SCHEMA,
-          },
-        },
-        ...(config.model === 'deepseek-v4-flash'
-          ? {
-              reasoning: { effort: 'none' },
-            }
-          : {}),
-        store: false,
-      });
-      if (response.status && response.status !== 'completed') {
-        throw new InvalidTranslationResponseError(
-          `Translation response is ${response.status}`,
-        );
-      }
-      content = response.output_text;
-      model = String(response.model);
-      if (response.usage) {
-        usage = {
-          inputTokens: response.usage.input_tokens,
-          outputTokens: response.usage.output_tokens,
-          cachedTokens: response.usage.input_tokens_details.cached_tokens ?? 0,
-          cacheWriteTokens:
-            response.usage.input_tokens_details.cache_write_tokens ?? 0,
-          reasoningTokens:
-            response.usage.output_tokens_details.reasoning_tokens ?? 0,
-        };
-      }
+    const response = await structuredModel.invoke([
+      ['system', TRANSLATION_INSTRUCTIONS],
+      ['user', translationInput(proposal)],
+    ]);
+    const metadata = recordField(response.raw, 'response_metadata');
+    const finishReason = stringField(metadata, 'finish_reason');
+    if (finishReason && finishReason !== 'stop') {
+      throw new InvalidTranslationResponseError(
+        `Translation response finish_reason is ${finishReason}`,
+      );
     }
-
+    const usage = responseUsage(response.raw);
     const output: TranslationOutput = {
-      ...parseOutput(content, proposal),
-      model,
+      ...validateOutput(response.parsed, proposal),
+      model: stringField(metadata, 'model_name') ?? config.model,
       ...(usage ? { usage } : {}),
     };
     logTranslation(proposal.id, output);
