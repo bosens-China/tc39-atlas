@@ -15,6 +15,7 @@ TC39 Atlas 面向关注 ECMAScript 提案的中文用户与 AI Agent。产品每
 - TC39 Dataset 提供标题、阶段、状态和 ECMAScript 版本等结构化元数据。TC39 官方提案清单仍是权威上游。
 - 各提案仓库 README 是正文来源。产品保留仓库 URL，方便用户和 Agent 回到原始资料。
 - GitHub Actions 每天同步一次，也支持手动执行。代码变化可以触发重新构建。
+- Pages 工作流在质量检查、数据同步和 Web 构建成功后，仅将 `dataset.json` 与 `manifest.json` 作为机器人提交写回 `main`，再发布同轮 Pages 产物。无数据变化时不创建提交；机器人提交跳过后续检查，避免递归构建。Pull Request CI 保持只读。
 - 同步前校验官方 JSON Schema 指纹、Schema 有效性和产品消费字段。上游契约变化或数据无效时中止发布，保留上一份 Pages 数据。
 - README 明确不存在时允许保存空正文。其他下载失败会中止本轮生成，防止网络故障覆盖有效数据。
 - 发布产物由 `dataset.json` 和 `manifest.json` 组成。清单包含格式版本、内容版本、生成时间、字节数和 SHA-256。
