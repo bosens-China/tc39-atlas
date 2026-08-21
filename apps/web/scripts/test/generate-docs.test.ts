@@ -112,7 +112,7 @@ describe('proposal documentation generator', () => {
     expect(result).not.toContain('\n# Readme title');
   });
 
-  it('marks an outdated README stage without overriding Dataset metadata', () => {
+  it('explains that README metadata may be stale without inferring its stage', () => {
     const proposal = sampleDataset().proposals[0];
     if (!proposal) throw new Error('Expected proposal fixture');
     const changed = {
@@ -132,11 +132,11 @@ describe('proposal documentation generator', () => {
     const en = proposalDocument(changed, 'en');
 
     expect(zh).toContain('- **阶段**: Stage 4');
-    expect(zh).toContain('上游 README 标注为 **Stage 3**');
+    expect(zh).toContain('其中的阶段或状态标注可能滞后');
     expect(zh).toContain('阶段：第 3 阶段');
     expect(zh).toContain('它增加了一项示例能力。');
     expect(en).toContain('- **Stage**: Stage 4');
-    expect(en).toContain('The upstream README says **Stage 3**');
+    expect(en).toContain('may contain outdated stage or status metadata');
     expect(en).toContain('Stage: 3');
     expect(en).toContain('It adds an example capability.');
   });

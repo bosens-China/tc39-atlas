@@ -51,11 +51,6 @@ export {
   searchProposals,
 } from './queries.js';
 export { fetchTc39Proposals } from './source.js';
-export {
-  extractReadmeStage,
-  readmeStageConflict,
-  type ReadmeStageConflict,
-} from './readme-stage.js';
 export { detectProposalChanges, mergeProposalChanges } from './sync.js';
 export {
   AGENT_TRANSLATIONS_FILE,

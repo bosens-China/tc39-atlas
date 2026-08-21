@@ -1,4 +1,3 @@
-import { readmeStageConflict } from '@tc39-atlas/core';
 import type { AtlasProposal } from '@tc39-atlas/core/model';
 import remarkGfm from 'remark-gfm';
 import remarkParse from 'remark-parse';
@@ -16,7 +15,6 @@ import {
   formatDate,
   localizedTitle,
   markdownText,
-  staleReadmeStageNotice,
   stageLabel,
   statusLabel,
   type Language,
@@ -178,15 +176,14 @@ function proposalBody(
   const overviewBlock = overview?.trim()
     ? `:::tip ${copy[language].proposalOverview}\n${markdownText(overview)}\n:::`
     : '';
-  const stageConflict = readmeStageConflict(proposal.readme, proposal.stage);
-  const stageConflictBlock = stageConflict
-    ? `:::warning\n${staleReadmeStageNotice(stageConflict.readmeStage, stageConflict.canonicalStage, language)}\n:::`
+  const readmeSourceNotice = proposal.readme.trim()
+    ? `:::note\n${copy[language].readmeSourceNotice}\n:::`
     : '';
   return [
     subtitle,
     proposalOverview(proposal, language, context),
     overviewBlock,
-    stageConflictBlock,
+    readmeSourceNotice,
     missing,
     readme,
   ]

@@ -36,6 +36,8 @@ export const copy = {
     alternate: 'English original',
     missingTranslation: '暂无中文译文，请切换到英文原文阅读。',
     missingSource: '上游仓库未提供 README。',
+    readmeSourceNotice:
+      '以下 README 来自上游仓库，其中的阶段或状态标注可能滞后；当前信息以提案概览为准。',
     title: '提案',
     event: '变化',
     occurredAt: '时间',
@@ -62,6 +64,8 @@ export const copy = {
     alternate: '中文译文',
     missingTranslation: '',
     missingSource: 'The upstream repository does not provide a README.',
+    readmeSourceNotice:
+      'The README below comes from the upstream repository and may contain outdated stage or status metadata. Use the proposal details above as the current source of truth.',
     title: 'Proposal',
     event: 'Change',
     occurredAt: 'Date',
@@ -88,16 +92,6 @@ export function statusLabel(
     withdrawn: ['已撤回', 'Withdrawn'],
   };
   return labels[status][language === 'zh' ? 0 : 1];
-}
-
-export function staleReadmeStageNotice(
-  readmeStage: ProposalStage,
-  canonicalStage: ProposalStage,
-  language: Language,
-): string {
-  return language === 'zh'
-    ? `上游 README 标注为 **Stage ${readmeStage}**，可能尚未更新。当前阶段以提案概览中的 **Stage ${canonicalStage}** 为准。`
-    : `The upstream README says **Stage ${readmeStage}** and may be outdated. Use **Stage ${canonicalStage}** in the proposal details as the current stage.`;
 }
 
 export function formatDate(value: string, language: Language): string {
