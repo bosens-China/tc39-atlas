@@ -1,14 +1,25 @@
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import {
+  DATASET_FILE_NAME,
+  MANIFEST_FILE_NAME,
   buildAtlasDataset,
   createDatasetManifest,
   datasetSemanticRevision,
   mergePublishedProposals,
   selectPreviousDataset,
   serializeDataset,
+  writeAtlasDatasetIfChanged,
 } from './dataset.js';
-import { DATASET_SCHEMA_VERSION, parseAtlasDataset } from './model.js';
+import {
+  DATASET_SCHEMA_VERSION,
+  parseAtlasDataset,
+  parseDatasetManifest,
+} from './model.js';
 import type { AtlasDataset, AtlasProposal, SyncedProposal } from './model.js';
 import { detectProposalChanges } from './sync.js';
 import {
@@ -47,7 +58,48 @@ const empty: AtlasDataset = {
   changes: [],
 };
 
+// 发布数据属于同一原子快照，任何手工修改都必须同步更新清单。
+const publishedDataDirectory = resolve(
+  import.meta.dirname,
+  '../../../apps/web/docs/public/data',
+);
+
 describe('published dataset', () => {
+  it('keeps the checked-in dataset and manifest consistent', async () => {
+    const [serialized, manifestText] = await Promise.all([
+      readFile(resolve(publishedDataDirectory, DATASET_FILE_NAME), 'utf8'),
+      readFile(resolve(publishedDataDirectory, MANIFEST_FILE_NAME), 'utf8'),
+    ]);
+    const dataset = parseAtlasDataset(JSON.parse(serialized) as unknown);
+    const manifest = parseDatasetManifest(JSON.parse(manifestText) as unknown);
+
+    expect(manifest).toEqual(createDatasetManifest(dataset, serialized));
+  });
+
+  it('regenerates a stale manifest like a cache miss', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'tc39-atlas-'));
+    const serialized = serializeDataset(empty);
+    const staleManifest = createDatasetManifest(empty, `${serialized}\n`);
+
+    try {
+      await Promise.all([
+        writeFile(join(directory, DATASET_FILE_NAME), serialized, 'utf8'),
+        writeFile(
+          join(directory, MANIFEST_FILE_NAME),
+          JSON.stringify(staleManifest),
+          'utf8',
+        ),
+      ]);
+
+      const result = await writeAtlasDatasetIfChanged(empty, directory);
+
+      expect(result.changed).toBe(true);
+      expect(result.manifest).toEqual(createDatasetManifest(empty, serialized));
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it('keeps a newer repository snapshot instead of an older remote cache', () => {
     const older = {
       ...empty,

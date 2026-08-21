@@ -275,7 +275,8 @@ async function readPublishedDataset(
       manifest.dataset.sha256 !== expected.dataset.sha256 ||
       manifest.dataset.bytes !== expected.dataset.bytes
     ) {
-      throw new Error('Published dataset manifest does not match dataset.json');
+      // 清单是数据集的派生索引；失配时按缓存未命中处理并重新生成。
+      return null;
     }
     return { dataset, manifest, serialized };
   } catch (error: unknown) {
