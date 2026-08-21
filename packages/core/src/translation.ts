@@ -7,6 +7,7 @@ import type {
 } from './model.js';
 import {
   createProposalTranslator,
+  overviewDescribesMaturity,
   translationConfig,
   translationFingerprint,
 } from './translation-provider.js';
@@ -83,11 +84,17 @@ export function proposalNeedsTranslation(proposal: AtlasProposal): boolean {
   const readmeIsValid = proposal.readme.trim()
     ? Boolean(proposal.readmeZh?.trim())
     : proposal.readmeZh === '';
+  const overviewIsValid = proposal.overview
+    ? Boolean(
+        proposal.overview.en.trim() &&
+        proposal.overview.zh.trim() &&
+        !overviewDescribesMaturity(proposal.overview),
+      )
+    : false;
   return !(
     proposal.titleZh?.trim() &&
     readmeIsValid &&
-    proposal.overview?.en.trim() &&
-    proposal.overview.zh.trim() &&
+    overviewIsValid &&
     proposal.translation?.sourceHash === translationContentHash(proposal) &&
     proposal.translation.policyVersion === TRANSLATION_CONTRACT_VERSION
   );

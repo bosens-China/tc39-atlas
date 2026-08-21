@@ -6,6 +6,7 @@ import type { AtlasProposal } from './model.js';
 import type { TranslationOutput } from './translation.js';
 import {
   TRANSLATION_CONTRACT_VERSION,
+  proposalNeedsTranslation,
   translatePendingProposals,
   translatePendingProposalsFromEnv,
   translationContentHash,
@@ -134,6 +135,21 @@ describe('proposal translation queue', () => {
     );
   });
 
+  it.each([
+    ['This Stage-0 proposal adds a helper.', '该提案增加了一个辅助方法。'],
+    ['This Stage‑1 proposal adds a helper.', '该提案增加了一个辅助方法。'],
+    ['This proposal adds a helper.', '该提案目前处于第一阶段。'],
+    ['This proposal is withdrawn.', '该提案增加了一个辅助方法。'],
+    ['This proposal targets ES 2027.', '该提案增加了一个辅助方法。'],
+  ])('requeues cached overviews containing maturity metadata', (en, zh) => {
+    expect(
+      proposalNeedsTranslation({
+        ...translatedProposal(),
+        overview: { en, zh },
+      }),
+    ).toBe(true);
+  });
+
   it('invalidates cached output when README content changes', async () => {
     const translate = vi.fn(async (value: AtlasProposal) => output(value));
     const changed = {
@@ -221,8 +237,8 @@ describe('proposal translation queue', () => {
                           overview:
                             parsedBody.model === 'maturity-model'
                               ? {
-                                  en: 'The proposal is currently at Stage 3.',
-                                  zh: '该提案目前处于第 3 阶段。',
+                                  en: 'This Stage-0 proposal adds a helper.',
+                                  zh: '该提案目前处于第一阶段。',
                                 }
                               : {
                                   en: 'A short English overview.',
@@ -296,6 +312,8 @@ describe('proposal translation queue', () => {
         response_format: { type: 'json_object' },
       });
       expect(JSON.stringify(bodies[0])).toContain('结构示例');
+      expect(JSON.stringify(bodies[0])).toContain('Stage-0');
+      expect(JSON.stringify(bodies[0])).toContain('正确示例只描述问题和方案');
 
       const truncatedRun = await translatePendingProposalsFromEnv(
         [proposal()],
