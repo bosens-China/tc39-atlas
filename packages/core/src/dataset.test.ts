@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildAtlasDataset,
   createDatasetManifest,
+  datasetSemanticRevision,
   mergePublishedProposals,
   selectPreviousDataset,
   serializeDataset,
@@ -228,5 +229,45 @@ describe('published dataset', () => {
       new Date('2026-08-09T00:00:00.000Z'),
     );
     expect(anchored.changes).toEqual([]);
+  });
+
+  it('ignores observation timestamps in the semantic revision', () => {
+    const first = {
+      ...empty,
+      generatedAt: '2026-08-08T00:00:00.000Z',
+      proposals: [translated],
+    };
+    const observedLater = {
+      ...first,
+      generatedAt: '2026-08-09T00:00:00.000Z',
+      proposals: [
+        {
+          ...translated,
+          syncedAt: '2026-08-09T00:00:00.000Z',
+          translation: {
+            ...translated.translation,
+            translatedAt: '2026-08-09T00:00:00.000Z',
+          },
+        },
+      ],
+    };
+
+    expect(datasetSemanticRevision(observedLater)).toBe(
+      datasetSemanticRevision(first),
+    );
+    expect(
+      datasetSemanticRevision({
+        ...observedLater,
+        proposals: [
+          { ...observedLater.proposals[0]!, title: 'Proposal A changed' },
+        ],
+      }),
+    ).not.toBe(datasetSemanticRevision(first));
+    expect(
+      datasetSemanticRevision({
+        ...observedLater,
+        changes: detectProposalChanges([], [translated]),
+      }),
+    ).not.toBe(datasetSemanticRevision(first));
   });
 });

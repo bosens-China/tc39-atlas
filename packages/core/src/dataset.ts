@@ -6,6 +6,7 @@ import {
   DATASET_SCHEMA_VERSION,
   atlasDatasetSchema,
   parseAtlasDataset,
+  parseDatasetManifest,
   type AtlasDataset,
   type AtlasProposal,
   type DatasetManifest,
@@ -32,6 +33,13 @@ export interface PrepareDatasetOptions {
 export interface PrepareDatasetResult {
   dataset: AtlasDataset;
   previous: AtlasDataset;
+}
+
+export interface WriteAtlasDatasetResult {
+  changed: boolean;
+  dataset: AtlasDataset;
+  manifest: DatasetManifest;
+  serialized: string;
 }
 
 function emptyDataset(): AtlasDataset {
@@ -180,6 +188,41 @@ export function serializeDataset(dataset: AtlasDataset): string {
   return `${JSON.stringify(stored, null, 2)}\n`;
 }
 
+/** 排除观测时间，只让用户可见内容、翻译契约和变化事件触发发布。 */
+export function datasetSemanticRevision(dataset: AtlasDataset): string {
+  const semantic = {
+    schemaVersion: dataset.schemaVersion,
+    proposals: dataset.proposals.map((proposal) => ({
+      id: proposal.id,
+      title: proposal.title,
+      titleZh: proposal.titleZh,
+      stage: proposal.stage,
+      edition: proposal.edition,
+      status: proposal.status,
+      repositoryUrl: proposal.repositoryUrl,
+      readme: proposal.readme,
+      readmeHash: proposal.readmeHash,
+      readmeZh: proposal.readmeZh,
+      overview: proposal.overview,
+      translation: proposal.translation
+        ? {
+            sourceHash: proposal.translation.sourceHash,
+            policyVersion: proposal.translation.policyVersion,
+            ...(proposal.translation.translatorFingerprint
+              ? {
+                  translatorFingerprint:
+                    proposal.translation.translatorFingerprint,
+                }
+              : {}),
+            model: proposal.translation.model,
+          }
+        : null,
+    })),
+    changes: dataset.changes,
+  };
+  return createHash('sha256').update(JSON.stringify(semantic)).digest('hex');
+}
+
 export function createDatasetManifest(
   dataset: AtlasDataset,
   serialized: string,
@@ -202,6 +245,39 @@ async function readLocalDataset(path: string): Promise<AtlasDataset | null> {
     return parseAtlasDataset(
       JSON.parse(await readFile(path, 'utf8')) as unknown,
     );
+  } catch (error: unknown) {
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      error.code === 'ENOENT'
+    ) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+async function readPublishedDataset(
+  outputDirectory: string,
+): Promise<Omit<WriteAtlasDatasetResult, 'changed'> | null> {
+  try {
+    const [serialized, manifestText] = await Promise.all([
+      readFile(join(outputDirectory, DATASET_FILE_NAME), 'utf8'),
+      readFile(join(outputDirectory, MANIFEST_FILE_NAME), 'utf8'),
+    ]);
+    const dataset = parseAtlasDataset(JSON.parse(serialized) as unknown);
+    const manifest = parseDatasetManifest(JSON.parse(manifestText) as unknown);
+    const expected = createDatasetManifest(dataset, serialized);
+    if (
+      manifest.revision !== expected.revision ||
+      manifest.generatedAt !== expected.generatedAt ||
+      manifest.dataset.sha256 !== expected.dataset.sha256 ||
+      manifest.dataset.bytes !== expected.dataset.bytes
+    ) {
+      throw new Error('Published dataset manifest does not match dataset.json');
+    }
+    return { dataset, manifest, serialized };
   } catch (error: unknown) {
     if (
       typeof error === 'object' &&
@@ -282,4 +358,21 @@ export async function writeAtlasDataset(
     `${JSON.stringify(manifest, null, 2)}\n`,
   );
   return { manifest, serialized };
+}
+
+/** 语义内容未变化时保留上一份正式文件，避免观测时间触发空发布。 */
+export async function writeAtlasDatasetIfChanged(
+  dataset: AtlasDataset,
+  outputDirectory: string,
+): Promise<WriteAtlasDatasetResult> {
+  const published = await readPublishedDataset(outputDirectory);
+  if (
+    published &&
+    datasetSemanticRevision(published.dataset) ===
+      datasetSemanticRevision(dataset)
+  ) {
+    return { ...published, changed: false };
+  }
+  const written = await writeAtlasDataset(dataset, outputDirectory);
+  return { ...written, changed: true, dataset };
 }

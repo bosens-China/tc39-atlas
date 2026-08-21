@@ -7,7 +7,7 @@ import * as z from 'zod/v4';
 import {
   prepareAtlasDataset,
   serializeDataset,
-  writeAtlasDataset,
+  writeAtlasDatasetIfChanged,
   type PrepareDatasetOptions,
 } from './dataset.js';
 import {
@@ -91,6 +91,7 @@ export interface ScanTranslationResult {
 }
 
 export interface ExecuteTranslationResult {
+  changed: boolean;
   dataset: AtlasDataset;
   manifest: DatasetManifest;
   plan: TranslationPlan;
@@ -312,13 +313,14 @@ export async function executeTranslationWork(
     options.env ?? process.env,
   );
   const published = { ...dataset, proposals: translated.proposals };
-  const { manifest } = await writeAtlasDataset(
+  const output = await writeAtlasDatasetIfChanged(
     published,
     options.outputDirectory,
   );
   return {
-    dataset: published,
-    manifest,
+    changed: output.changed,
+    dataset: output.dataset,
+    manifest: output.manifest,
     plan,
     agentApplied: applied.applied,
     translation: {

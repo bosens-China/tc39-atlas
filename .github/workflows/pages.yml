@@ -26,6 +26,8 @@ concurrency:
 
 jobs:
   build:
+    outputs:
+      should_deploy: ${{ steps.release.outputs.should_deploy }}
     permissions:
       contents: write
       pages: write
@@ -48,15 +50,6 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Restore Rspack persistent cache
-        uses: actions/cache@v4
-        with:
-          path: apps/web/node_modules/.cache/rspack
-          # CI 使用根路径构建，Pages 缓存必须隔离，避免复用错误的客户端 base。
-          key: rspack-pages-${{ github.event.repository.name }}-${{ runner.os }}-node-22-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
-          restore-keys: |
-            rspack-pages-${{ github.event.repository.name }}-${{ runner.os }}-node-22-${{ hashFiles('pnpm-lock.yaml') }}-
-
       - name: Run repository quality checks
         run: pnpm check
 
@@ -73,23 +66,32 @@ jobs:
           TRANSLATION_MODEL: ${{ vars.TRANSLATION_MODEL }}
           TRANSLATION_MAX_OUTPUT_TOKENS: ${{ vars.TRANSLATION_MAX_OUTPUT_TOKENS }}
 
+      - name: Decide whether to publish
+        id: release
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if git diff --quiet -- apps/web/docs/public/data/dataset.json apps/web/docs/public/data/manifest.json; then
+            data_changed=false
+          else
+            data_changed=true
+          fi
+          if [[ "$EVENT_NAME" == "schedule" && "$data_changed" == "false" ]]; then
+            should_deploy=false
+          else
+            should_deploy=true
+          fi
+          echo "data_changed=$data_changed" >> "$GITHUB_OUTPUT"
+          echo "should_deploy=$should_deploy" >> "$GITHUB_OUTPUT"
+
       - name: Build the website
+        if: steps.release.outputs.should_deploy == 'true'
         run: pnpm --filter @tc39-atlas/web build
         env:
           BASE_PATH: /${{ github.event.repository.name }}/
 
-      - name: Verify the client-side Pages base path
-        env:
-          BASE_PATH: /${{ github.event.repository.name }}/
-        run: |
-          if grep --fixed-strings --quiet "base:\"${BASE_PATH}\"" apps/web/doc_build/static/js/index.*.js; then
-            exit 0
-          fi
-          echo "::error::The client bundle does not contain the expected Pages base path: ${BASE_PATH}"
-          exit 1
-
       - name: Persist the generated dataset
-        if: github.ref == 'refs/heads/main'
+        if: steps.release.outputs.should_deploy == 'true' && github.ref == 'refs/heads/main'
         run: |
           if git diff --quiet -- apps/web/docs/public/data/dataset.json apps/web/docs/public/data/manifest.json; then
             echo "Generated dataset is unchanged; skipping commit."
@@ -101,12 +103,15 @@ jobs:
           git commit -m "chore(data): refresh generated dataset [skip ci]"
           git push origin HEAD:main
 
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v4
+      - if: steps.release.outputs.should_deploy == 'true'
+        uses: actions/configure-pages@v5
+      - if: steps.release.outputs.should_deploy == 'true'
+        uses: actions/upload-pages-artifact@v4
         with:
           path: apps/web/doc_build
 
   deploy:
+    if: needs.build.outputs.should_deploy == 'true'
     permissions:
       contents: read
       pages: write

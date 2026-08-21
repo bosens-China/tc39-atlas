@@ -7,6 +7,7 @@ const result = await executeTranslationWork(options);
 console.log(
   JSON.stringify({
     event: 'translation_execution_completed',
+    changed: result.changed,
     proposals: result.dataset.proposals.length,
     revision: result.manifest.revision,
     agentApplied: result.agentApplied,

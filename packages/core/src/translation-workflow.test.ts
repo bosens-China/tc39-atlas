@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { serializeDataset } from './dataset.js';
+import { serializeDataset, writeAtlasDataset } from './dataset.js';
 import {
   DATASET_SCHEMA_VERSION,
   parseAtlasDataset,
@@ -187,6 +187,7 @@ describe('two-phase translation workflow', () => {
     );
 
     expect(result).toMatchObject({
+      changed: true,
       agentApplied: 1,
       translation: {
         pending: 1,
@@ -199,6 +200,63 @@ describe('two-phase translation workflow', () => {
       titleZh: '提案 A',
       translation: { model: 'local-agent' },
     });
+  });
+
+  it('keeps published files when only observation timestamps change', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'tc39-atlas-noop-'));
+    temporaryDirectories.push(root);
+    const workDirectory = join(root, '.cache');
+    const outputDirectory = join(root, 'data');
+    await mkdir(workDirectory, { recursive: true });
+
+    const previousProposal = translated(proposal());
+    const previous = dataset([previousProposal], '2026-08-19T00:00:00.000Z');
+    await writeAtlasDataset(previous, outputDirectory);
+    const before = await Promise.all([
+      readFile(join(outputDirectory, 'dataset.json'), 'utf8'),
+      readFile(join(outputDirectory, 'manifest.json'), 'utf8'),
+    ]);
+    const snapshot = dataset(
+      [
+        {
+          ...previousProposal,
+          syncedAt: '2026-08-20T00:00:00.000Z',
+          translation: {
+            ...previousProposal.translation,
+            translatedAt: '2026-08-20T00:00:00.000Z',
+          },
+        },
+      ],
+      '2026-08-20T00:00:00.000Z',
+    );
+    const serialized = serializeDataset(snapshot);
+    const plan = createTranslationPlan(previous, snapshot, serialized);
+    await Promise.all([
+      writeFile(
+        join(workDirectory, TRANSLATION_SNAPSHOT_FILE),
+        serialized,
+        'utf8',
+      ),
+      writeFile(
+        join(workDirectory, TRANSLATION_PLAN_FILE),
+        JSON.stringify(plan),
+        'utf8',
+      ),
+    ]);
+
+    const result = await executeTranslationWork({
+      outputDirectory,
+      workDirectory,
+      env: {},
+    });
+    const after = await Promise.all([
+      readFile(join(outputDirectory, 'dataset.json'), 'utf8'),
+      readFile(join(outputDirectory, 'manifest.json'), 'utf8'),
+    ]);
+
+    expect(result.changed).toBe(false);
+    expect(result.dataset).toEqual(previous);
+    expect(after).toEqual(before);
   });
 
   it('rejects Agent results for another plan', async () => {

@@ -35,7 +35,7 @@ pnpm sync:translate
 }
 ```
 
-Agent 结果可以只覆盖部分计划项；配置模型密钥时，剩余项目由模型继续处理。`.cache/`、生成的提案 Markdown 和构建缓存均被 Git 忽略；本地完成后只需审查并提交 `apps/web/docs/public/data/dataset.json` 与 `manifest.json`。`pnpm sync` 会依次执行完整的两阶段流程。
+Agent 结果可以只覆盖部分计划项；配置模型密钥时，剩余项目由模型继续处理。`.cache/`、生成的提案 Markdown 和构建缓存均被 Git 忽略；本地完成后只需审查并提交 `apps/web/docs/public/data/dataset.json` 与 `manifest.json`。只有生成时间、提案同步时间或翻译完成时间变化时，`sync:translate` 会保留上一份正式数据文件；`pnpm sync` 会依次执行完整的两阶段流程。
 
 ## 开源协议
 
