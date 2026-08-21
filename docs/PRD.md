@@ -12,10 +12,10 @@ TC39 Atlas 面向关注 ECMAScript 提案的中文用户与 AI Agent。产品每
 
 ## 数据来源与发布
 
-- TC39 Dataset 提供标题、阶段、状态和 ECMAScript 版本等结构化元数据，是当前提案状态的唯一事实源。README、独立 proposal spec 和 AI 输出不得覆盖或补全这些字段；README 阶段与 Dataset 冲突时只记录上游陈旧警告，不中止同步。
+- TC39 Dataset 提供标题、阶段、状态和 ECMAScript 版本等结构化元数据，是当前提案状态的唯一事实源。README、独立 proposal spec 和 AI 输出不得覆盖或补全这些字段；页面固定说明上游 README 中的阶段或状态标注可能滞后，不根据正文猜测当前阶段。
 - 各提案仓库默认分支 `HEAD/README.md` 是正文来源，每天通过 GitHub Raw 地址重新获取。产品保留仓库 URL，方便用户和 Agent 回到原始资料；最新 README 文件本身仍可能包含未及时更新的阶段标注。
 - GitHub Actions 每天同步一次，也支持手动执行。同步先扫描并记录待翻译内容，再执行翻译和发布；代码变化可以触发重新构建。
-- Pages 工作流在质量检查、两阶段同步和 Web 构建成功后，仅将 `dataset.json` 与 `manifest.json` 作为机器人提交写回 `main`，再发布同轮 Pages 产物。无数据变化时不创建提交；机器人提交跳过后续检查，避免递归构建。Pull Request CI 保持只读。
+- Pages 工作流在质量检查、两阶段同步和 Web 构建成功后，仅将 `dataset.json` 与 `manifest.json` 作为机器人提交写回 `main`，再发布同轮 Pages 产物。正式数据以排除生成时间、提案同步时间和翻译完成时间的语义 revision 判断是否变化，变化事件的发生时间仍属于正式内容；仅观测时间变化时保留上一份文件，定时任务跳过 Web 构建、提交和部署。代码推送与手动任务仍完整构建发布；机器人提交跳过后续检查，避免递归构建。Pull Request CI 保持只读。
 - 同步前校验官方 JSON Schema 指纹、Schema 有效性和产品消费字段。上游契约变化或数据无效时中止发布，保留上一份 Pages 数据。
 - README 明确不存在时允许保存空正文。其他下载失败会中止本轮生成，防止网络故障覆盖有效数据。
 - 发布产物由 `dataset.json` 和 `manifest.json` 组成。清单包含格式版本、内容版本、生成时间、字节数和 SHA-256。
@@ -43,7 +43,7 @@ TC39 Atlas 面向关注 ECMAScript 提案的中文用户与 AI Agent。产品每
 - 顶栏依次提供周刊动态、所有提案、接入 AI 和关于，并由 Rspress 提供多语言切换。每个顶栏目录通过自己的 `_meta.json` 生成独立侧边栏。
 - 首页通过 Markdown frontmatter 使用 Rspress 内置 Home 布局；提案目录、周期动态、AI Agent 接入和详情使用文档页，不维护并行的 React 应用壳。
 - JSON 数据集是 Web 的唯一权威数据源。Web 构建前从数据集生成中英文提案目录、五个日历周期的变化页、详情 Markdown、年份与阶段上下文页，以及提案侧边栏元数据。
-- 每个提案保留 `/proposals/<id>` 中英文兼容 URL，并展示当前语言的提案速览、README、阶段、状态、版本、同步时间、语言切换和官方仓库入口。README 开头的阶段标注与 Dataset 冲突时，中英文页面明确提示上游标注可能过期，并以结构化提案概览为准。
+- 每个提案保留 `/proposals/<id>` 中英文兼容 URL，并展示当前语言的提案速览、README、阶段、状态、版本、同步时间、语言切换和官方仓库入口。中英文页面固定说明上游 README 中的阶段或状态标注可能滞后，并以结构化提案概览为准。
 - 提案侧边栏始终显示官方英文标题，同时按 ECMAScript 年份和 TC39 阶段组织；年份使用 `/proposals/year/<year>/<id>`，阶段使用 `/proposals/stage/<stage>/<id>`，组内优先按首次记录时间倒序。文章级结构化结果缺失时，中文侧边栏使用 Rspress 内置 tag 标记“未译”；已完成翻译的空 README 不误报。上下文页不加入全文搜索，避免同一提案重复出现。
 - Rspress 发布根 `llms.txt` 索引和每个路由的 Markdown。索引展示提案阶段、状态与 ECMAScript 年份，并排除年份、阶段上下文页造成的重复链接。Agent 先读取这一份索引，再按需读取一个或多个提案 Markdown 页面。
 - 周刊动态侧边栏提供今日、本周、本月、本季度和本年变化，按数据集生成时间的 UTC 日历边界筛选新增、阶段变化、完成、撤回和转为不活跃事件。
@@ -68,7 +68,7 @@ TC39 Atlas 面向关注 ECMAScript 提案的中文用户与 AI Agent。产品每
 
 ## 部署、分发与质量边界
 
-- Web、数据和机器可读 Markdown 通过 GitHub Actions 部署到 GitHub Pages。Pull Request CI 和 Pages 发布统一执行格式、Lint、类型与测试检查；Pages 工作流再同步数据并生成 Rspress 的 `doc_build` 产物。同步或构建失败时不覆盖上一份成功版本。
+- Web、数据和机器可读 Markdown 通过 GitHub Actions 部署到 GitHub Pages。Pull Request CI 和 Pages 发布统一执行格式、Lint、类型与测试检查；Pages 工作流再同步数据并生成 Rspress 的 `doc_build` 产物。Actions 只持久化 pnpm store，不跨运行保存体积较大且无实测收益的 Rspack 缓存；Rspress 本地默认缓存保持不变。同步或构建失败时不覆盖上一份成功版本。
 - TypeScript 禁止显式 `any`。数据模型、生成、查询和翻译契约使用 Vitest 覆盖。
 - 用户运行方式、环境变量和 Pages 设置以[仓库 README](../README.md)为准。
 
