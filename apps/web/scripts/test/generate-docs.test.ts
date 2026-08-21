@@ -9,6 +9,7 @@ import {
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { generateProposalDocs, normalizeReadme } from '../generate-docs.js';
+import { proposalDocument } from '../proposal-document.js';
 
 const temporaryDirectories: string[] = [];
 
@@ -109,6 +110,35 @@ describe('proposal documentation generator', () => {
     expect(result).toContain('## Readme title');
     expect(result).toContain('### Details');
     expect(result).not.toContain('\n# Readme title');
+  });
+
+  it('marks an outdated README stage without overriding Dataset metadata', () => {
+    const proposal = sampleDataset().proposals[0];
+    if (!proposal) throw new Error('Expected proposal fixture');
+    const changed = {
+      ...proposal,
+      stage: 4 as const,
+      status: 'finished' as const,
+      edition: 2027,
+      readme: '# Example\n\nStage: 3\n\n## Motivation',
+      readmeZh: '# 示例\n\n阶段：第 3 阶段\n\n## 动机',
+      overview: {
+        en: 'It adds an example capability.',
+        zh: '它增加了一项示例能力。',
+      },
+    };
+
+    const zh = proposalDocument(changed, 'zh');
+    const en = proposalDocument(changed, 'en');
+
+    expect(zh).toContain('- **阶段**: Stage 4');
+    expect(zh).toContain('上游 README 标注为 **Stage 3**');
+    expect(zh).toContain('阶段：第 3 阶段');
+    expect(zh).toContain('它增加了一项示例能力。');
+    expect(en).toContain('- **Stage**: Stage 4');
+    expect(en).toContain('The upstream README says **Stage 3**');
+    expect(en).toContain('Stage: 3');
+    expect(en).toContain('It adds an example capability.');
   });
 
   it('creates bilingual pages and removes stale generated Markdown', async () => {

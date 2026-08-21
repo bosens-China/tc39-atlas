@@ -1,14 +1,11 @@
 import { createHash } from 'node:crypto';
 
 export const TRANSLATION_TARGET_LANGUAGE = 'zh-CN';
-export const TRANSLATION_CONTRACT_VERSION = '7';
+export const TRANSLATION_CONTRACT_VERSION = '8';
 
 export interface TranslationContent {
   title: string;
   readme: string;
-  stage: number | null;
-  status: string;
-  edition: number | null;
 }
 
 export interface TranslationCacheKeyOptions {
@@ -20,15 +17,9 @@ function stableHash(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
 }
 
-/** 内容哈希覆盖所有会影响译文与提案速览的业务输入。 */
+/** 只有实际待翻译内容变化才使文章缓存失效。 */
 export function translationContentHash(content: TranslationContent): string {
-  return stableHash([
-    content.title,
-    content.readme,
-    content.stage,
-    content.status,
-    content.edition,
-  ]);
+  return stableHash([content.title, content.readme]);
 }
 
 /** 缓存键隔离目标语言与人工控制的翻译契约版本。 */

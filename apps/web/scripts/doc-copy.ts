@@ -90,6 +90,16 @@ export function statusLabel(
   return labels[status][language === 'zh' ? 0 : 1];
 }
 
+export function staleReadmeStageNotice(
+  readmeStage: ProposalStage,
+  canonicalStage: ProposalStage,
+  language: Language,
+): string {
+  return language === 'zh'
+    ? `上游 README 标注为 **Stage ${readmeStage}**，可能尚未更新。当前阶段以提案概览中的 **Stage ${canonicalStage}** 为准。`
+    : `The upstream README says **Stage ${readmeStage}** and may be outdated. Use **Stage ${canonicalStage}** in the proposal details as the current stage.`;
+}
+
 export function formatDate(value: string, language: Language): string {
   return new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en', {
     dateStyle: 'medium',

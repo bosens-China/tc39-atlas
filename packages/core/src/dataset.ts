@@ -16,26 +16,22 @@ import { fetchTc39Proposals } from './source.js';
 import { detectProposalChanges, mergeProposalChanges } from './sync.js';
 import {
   TRANSLATION_CONTRACT_VERSION,
-  translatePendingProposalsFromEnv,
   translationCacheKey,
   translationContentHash,
-  type TranslationRunResult,
 } from './translation.js';
 
 export const DATASET_FILE_NAME = 'dataset.json';
 export const MANIFEST_FILE_NAME = 'manifest.json';
 const INITIAL_GENERATED_AT = new Date(0).toISOString();
 
-export interface GenerateDatasetOptions {
+export interface PrepareDatasetOptions {
   outputDirectory: string;
   previousUrl?: string;
-  env?: NodeJS.ProcessEnv;
 }
 
-export interface GenerateDatasetResult {
+export interface PrepareDatasetResult {
   dataset: AtlasDataset;
-  manifest: DatasetManifest;
-  translation: TranslationRunResult;
+  previous: AtlasDataset;
 }
 
 function emptyDataset(): AtlasDataset {
@@ -255,11 +251,10 @@ async function writeAtomically(path: string, contents: string): Promise<void> {
   await rename(temporaryPath, path);
 }
 
-// 远端 Pages 快照优先用于复用译文；首次部署时回退到仓库内种子数据。
-export async function generateAtlasDataset(
-  options: GenerateDatasetOptions,
-): Promise<GenerateDatasetResult> {
-  const env = options.env ?? process.env;
+/** 获取最新英文内容并合并缓存，但不调用模型或修改正式数据集。 */
+export async function prepareAtlasDataset(
+  options: PrepareDatasetOptions,
+): Promise<PrepareDatasetResult> {
   const datasetPath = join(options.outputDirectory, DATASET_FILE_NAME);
   const remote = options.previousUrl
     ? await fetchPreviousDataset(options.previousUrl)
@@ -267,20 +262,24 @@ export async function generateAtlasDataset(
   const local = await readLocalDataset(datasetPath);
   const previous = selectPreviousDataset(remote, local) ?? emptyDataset();
   const incoming = await fetchTc39Proposals();
-  const merged = mergePublishedProposals(previous.proposals, incoming);
-  const translated = await translatePendingProposalsFromEnv(merged, env);
-  const dataset = buildAtlasDataset(previous, translated.proposals);
+  const proposals = mergePublishedProposals(previous.proposals, incoming);
+  return {
+    previous,
+    dataset: buildAtlasDataset(previous, proposals),
+  };
+}
+
+/** 只有翻译阶段才把数据集及其完整性清单写入正式发布目录。 */
+export async function writeAtlasDataset(
+  dataset: AtlasDataset,
+  outputDirectory: string,
+): Promise<{ manifest: DatasetManifest; serialized: string }> {
   const serialized = serializeDataset(dataset);
   const manifest = createDatasetManifest(dataset, serialized);
-
-  await writeAtomically(datasetPath, serialized);
+  await writeAtomically(join(outputDirectory, DATASET_FILE_NAME), serialized);
   await writeAtomically(
-    join(options.outputDirectory, MANIFEST_FILE_NAME),
+    join(outputDirectory, MANIFEST_FILE_NAME),
     `${JSON.stringify(manifest, null, 2)}\n`,
   );
-  return {
-    dataset,
-    manifest,
-    translation: translated.result,
-  };
+  return { manifest, serialized };
 }

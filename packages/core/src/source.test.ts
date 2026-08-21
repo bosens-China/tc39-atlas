@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { fetchReadme, parseDataset, verifyOfficialSchema } from './source.js';
+import {
+  fetchReadme,
+  parseDataset,
+  verifyOfficialSchema,
+  warnReadmeStageConflict,
+} from './source.js';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -67,5 +72,23 @@ describe('TC39 dataset source', () => {
     await expect(
       fetchReadme('https://github.com/tc39/proposal-private'),
     ).rejects.toThrow('403');
+  });
+
+  it('warns when README stage metadata disagrees with the Dataset', () => {
+    const warning = vi
+      .spyOn(console, 'warn')
+      .mockImplementation(() => undefined);
+
+    warnReadmeStageConflict('proposal-example', 4, '# Example\n\nStage: 3');
+
+    expect(warning).toHaveBeenCalledWith(
+      JSON.stringify({
+        level: 'warn',
+        event: 'stale_readme_stage',
+        proposal_id: 'proposal-example',
+        dataset_stage: 4,
+        readme_stage: 3,
+      }),
+    );
   });
 });

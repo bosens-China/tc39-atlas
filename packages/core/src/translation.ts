@@ -79,7 +79,7 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function needsTranslation(proposal: AtlasProposal): boolean {
+export function proposalNeedsTranslation(proposal: AtlasProposal): boolean {
   const readmeIsValid = proposal.readme.trim()
     ? Boolean(proposal.readmeZh?.trim())
     : proposal.readmeZh === '';
@@ -96,14 +96,29 @@ function needsTranslation(proposal: AtlasProposal): boolean {
 function translationMetadata(
   proposal: AtlasProposal,
   output: TranslationOutput,
-  fingerprint: string,
+  fingerprint?: string,
 ): TranslationMetadata {
   return {
     sourceHash: translationContentHash(proposal),
     policyVersion: TRANSLATION_CONTRACT_VERSION,
-    translatorFingerprint: fingerprint,
+    ...(fingerprint ? { translatorFingerprint: fingerprint } : {}),
     model: output.model,
     translatedAt: new Date().toISOString(),
+  };
+}
+
+/** 把已经校验的模型或本地 Agent 结果应用到对应英文内容。 */
+export function applyProposalTranslation(
+  proposal: AtlasProposal,
+  output: TranslationOutput,
+  fingerprint?: string,
+): AtlasProposal {
+  return {
+    ...proposal,
+    titleZh: output.titleZh,
+    readmeZh: output.readmeZh,
+    overview: output.overview,
+    translation: translationMetadata(proposal, output, fingerprint),
   };
 }
 
@@ -128,7 +143,7 @@ export async function translatePendingProposals(
   }));
   const pending = proposals
     .map((proposal, index) => ({ proposal, index }))
-    .filter(({ proposal }) => needsTranslation(proposal));
+    .filter(({ proposal }) => proposalNeedsTranslation(proposal));
   const candidates = options.maxItems
     ? pending.slice(0, options.maxItems)
     : pending;
@@ -144,13 +159,11 @@ export async function translatePendingProposals(
     async ({ proposal, index }) => {
       try {
         const output = await translate(proposal);
-        proposals[index] = {
-          ...proposal,
-          titleZh: output.titleZh,
-          readmeZh: output.readmeZh,
-          overview: output.overview,
-          translation: translationMetadata(proposal, output, fingerprint),
-        };
+        proposals[index] = applyProposalTranslation(
+          proposal,
+          output,
+          fingerprint,
+        );
         result.translated += 1;
       } catch (error: unknown) {
         result.failed += 1;
@@ -176,13 +189,14 @@ export async function translatePendingProposalsFromEnv(
   const config = translationConfig(env);
   const fingerprint = translationFingerprint(env);
   if (!config) {
+    const pending = source.filter(proposalNeedsTranslation).length;
     return {
       proposals: [...source],
       result: {
-        pending: source.filter((proposal) => needsTranslation(proposal)).length,
+        pending,
         translated: 0,
         failed: 0,
-        skipped: true,
+        skipped: pending > 0,
       },
     };
   }

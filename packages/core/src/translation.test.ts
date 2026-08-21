@@ -9,7 +9,6 @@ import {
   translatePendingProposals,
   translatePendingProposalsFromEnv,
   translationContentHash,
-  translationConfig,
   translationFingerprint,
 } from './translation.js';
 
@@ -68,69 +67,6 @@ function translatedProposal(): AtlasProposal {
 afterEach(() => vi.restoreAllMocks());
 
 describe('proposal translation queue', () => {
-  it('uses DeepSeek defaults', () => {
-    const config = translationConfig({ DEEPSEEK_API_KEY: 'test-key' });
-    expect(config).toMatchObject({
-      baseURL: 'https://api.deepseek.com',
-      model: 'deepseek-v4-flash',
-      temperature: 1,
-      concurrency: 100,
-    });
-    expect(config).not.toHaveProperty('maxOutputTokens');
-    expect(config).not.toHaveProperty('requestTimeoutMs');
-  });
-
-  it('accepts repository overrides and ignores empty values', () => {
-    expect(
-      translationConfig({
-        DEEPSEEK_API_KEY: 'test-key',
-        TRANSLATION_BASE_URL: 'https://openai-compatible.example/v1',
-        TRANSLATION_MODEL: 'compatible-model',
-        TRANSLATION_MAX_OUTPUT_TOKENS: '64',
-      }),
-    ).toMatchObject({
-      baseURL: 'https://openai-compatible.example/v1',
-      model: 'compatible-model',
-      maxOutputTokens: 64,
-    });
-    expect(
-      translationConfig({
-        DEEPSEEK_API_KEY: 'test-key',
-        TRANSLATION_BASE_URL: '',
-        TRANSLATION_MODEL: '',
-      }),
-    ).toMatchObject({
-      apiKey: 'test-key',
-      baseURL: 'https://api.deepseek.com',
-      model: 'deepseek-v4-flash',
-    });
-  });
-
-  it('records runtime translation settings separately from the cache key', () => {
-    const base = translationFingerprint({
-      DEEPSEEK_API_KEY: 'test-key',
-    });
-
-    expect(
-      translationFingerprint({
-        DEEPSEEK_API_KEY: 'test-key',
-        TRANSLATION_CONCURRENCY: '2',
-      }),
-    ).toBe(base);
-    expect(
-      translationFingerprint({
-        DEEPSEEK_API_KEY: 'test-key',
-        TRANSLATION_MODEL: 'another-model',
-      }),
-    ).not.toBe(base);
-    expect(
-      translationFingerprint({
-        DEEPSEEK_API_KEY: 'test-key',
-        TRANSLATION_MAX_OUTPUT_TOKENS: '64',
-      }),
-    ).not.toBe(base);
-  });
-
   it('reports pending work when no API key is configured', async () => {
     const original = [proposal()];
     const run = await translatePendingProposalsFromEnv(original, {});
@@ -185,9 +121,25 @@ describe('proposal translation queue', () => {
     );
   });
 
-  it('invalidates cached output when proposal maturity changes', async () => {
+  it('keeps cached output when only proposal maturity changes', async () => {
     const translate = vi.fn(async (value: AtlasProposal) => output(value));
     const changed = { ...translatedProposal(), stage: 2.7 as const };
+
+    const run = await translatePendingProposals([changed], translate);
+
+    expect(translate).not.toHaveBeenCalled();
+    expect(run.result.translated).toBe(0);
+    expect(run.proposals[0]?.translation?.sourceHash).toBe(
+      translationContentHash(changed),
+    );
+  });
+
+  it('invalidates cached output when README content changes', async () => {
+    const translate = vi.fn(async (value: AtlasProposal) => output(value));
+    const changed = {
+      ...translatedProposal(),
+      readme: '# Proposal A changed',
+    };
 
     const run = await translatePendingProposals([changed], translate);
 
@@ -266,10 +218,16 @@ describe('proposal translation queue', () => {
                       : JSON.stringify({
                           titleZh: '提案 A',
                           readmeZh: '# 中文译文',
-                          overview: {
-                            en: 'A short English overview.',
-                            zh: '简短的中文速览。',
-                          },
+                          overview:
+                            parsedBody.model === 'maturity-model'
+                              ? {
+                                  en: 'The proposal is currently at Stage 3.',
+                                  zh: '该提案目前处于第 3 阶段。',
+                                }
+                              : {
+                                  en: 'A short English overview.',
+                                  zh: '简短的中文速览。',
+                                },
                         }),
                 },
               },
@@ -316,9 +274,11 @@ describe('proposal translation queue', () => {
       const userInput = requestBody.messages?.find(
         (message) => message.role === 'user',
       )?.content;
-      expect(userInput).toContain('"stage":2');
-      expect(userInput).toContain('"status":"active"');
-      expect(userInput).toContain('"edition":null');
+      expect(userInput).toContain('"title":"Proposal A"');
+      expect(userInput).toContain('"readme":"# Proposal A"');
+      expect(userInput).not.toContain('"stage"');
+      expect(userInput).not.toContain('"status"');
+      expect(userInput).not.toContain('"edition"');
       expect(userInput).not.toContain('"id"');
 
       const compatibleRun = await translatePendingProposalsFromEnv(
@@ -354,7 +314,17 @@ describe('proposal translation queue', () => {
       expect(JSON.stringify(errorLog.mock.calls)).toContain(
         'does not match the schema',
       );
+
+      const maturityRun = await translatePendingProposalsFromEnv([proposal()], {
+        ...env,
+        TRANSLATION_MODEL: 'maturity-model',
+      });
+      expect(maturityRun.result.failed).toBe(1);
+      expect(JSON.stringify(errorLog.mock.calls)).toContain(
+        'must not describe maturity metadata',
+      );
       expect(paths).toEqual([
+        '/chat/completions',
         '/chat/completions',
         '/chat/completions',
         '/chat/completions',

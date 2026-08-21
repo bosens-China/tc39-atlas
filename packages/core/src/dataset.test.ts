@@ -89,6 +89,33 @@ describe('published dataset', () => {
       overview: null,
       translation: null,
     });
+
+    const changedReadme = {
+      ...synced,
+      readme: '# Proposal A changed',
+      readmeHash: 'b'.repeat(64),
+    };
+    expect(
+      mergePublishedProposals([translated], [changedReadme])[0]?.translation,
+    ).toBeNull();
+  });
+
+  it('reuses article translation when only Dataset maturity changes', () => {
+    const changed = {
+      ...synced,
+      stage: 4 as const,
+      status: 'finished' as const,
+      edition: 2027,
+    };
+
+    expect(mergePublishedProposals([translated], [changed])[0]).toMatchObject({
+      titleZh: translated.titleZh,
+      readmeZh: translated.readmeZh,
+      overview: translated.overview,
+      translation: {
+        sourceHash: translationContentHash(changed),
+      },
+    });
   });
 
   it('rejects older dataset schemas instead of migrating them at runtime', () => {

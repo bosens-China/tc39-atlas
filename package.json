@@ -15,7 +15,9 @@
     "format:check": "prettier --check .",
     "lint": "eslint \"**/*.{js,mjs,cjs,ts,tsx}\" --max-warnings=0",
     "prepare": "simple-git-hooks",
-    "sync": "pnpm --filter @tc39-atlas/core sync",
+    "sync": "pnpm sync:scan && pnpm sync:translate",
+    "sync:scan": "pnpm --filter @tc39-atlas/core sync:scan",
+    "sync:translate": "pnpm --filter @tc39-atlas/core sync:translate",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"
   },

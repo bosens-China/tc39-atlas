@@ -3,10 +3,11 @@ export {
   MANIFEST_FILE_NAME,
   buildAtlasDataset,
   createDatasetManifest,
-  generateAtlasDataset,
   mergePublishedProposals,
+  prepareAtlasDataset,
   selectPreviousDataset,
   serializeDataset,
+  writeAtlasDataset,
 } from './dataset.js';
 export {
   DATASET_SCHEMA_VERSION,
@@ -50,10 +51,33 @@ export {
   searchProposals,
 } from './queries.js';
 export { fetchTc39Proposals } from './source.js';
+export {
+  extractReadmeStage,
+  readmeStageConflict,
+  type ReadmeStageConflict,
+} from './readme-stage.js';
 export { detectProposalChanges, mergeProposalChanges } from './sync.js';
+export {
+  AGENT_TRANSLATIONS_FILE,
+  TRANSLATION_PLAN_FILE,
+  TRANSLATION_SNAPSHOT_FILE,
+  agentTranslationsSchema,
+  createTranslationPlan,
+  executeTranslationWork,
+  scanTranslationWork,
+  translationPlanSchema,
+  type AgentTranslations,
+  type ExecuteTranslationResult,
+  type ScanTranslationResult,
+  type TranslationPlan,
+  type TranslationReason,
+  type TranslationWorkflowOptions,
+} from './translation-workflow.js';
 export {
   TRANSLATION_CONTRACT_VERSION,
   TRANSLATION_TARGET_LANGUAGE,
+  applyProposalTranslation,
+  proposalNeedsTranslation,
   translatePendingProposals,
   translatePendingProposalsFromEnv,
   translationCacheKey,

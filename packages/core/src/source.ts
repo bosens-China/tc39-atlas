@@ -10,6 +10,7 @@ import {
   type ProposalStatus,
   type SyncedProposal,
 } from './model.js';
+import { readmeStageConflict } from './readme-stage.js';
 
 const DATASET_URL = 'https://tc39.es/dataset/proposals.min.json';
 const DATASET_HOME = 'https://tc39.es/dataset/';
@@ -203,6 +204,24 @@ export async function fetchReadme(repositoryUrl: string): Promise<string> {
   );
 }
 
+export function warnReadmeStageConflict(
+  proposalId: string,
+  stage: ProposalStage | null,
+  readme: string,
+): void {
+  const conflict = readmeStageConflict(readme, stage);
+  if (!conflict) return;
+  console.warn(
+    JSON.stringify({
+      level: 'warn',
+      event: 'stale_readme_stage',
+      proposal_id: proposalId,
+      dataset_stage: conflict.canonicalStage,
+      readme_stage: conflict.readmeStage,
+    }),
+  );
+}
+
 export async function fetchTc39Proposals(): Promise<SyncedProposal[]> {
   const [schema, dataset] = await Promise.all([
     fetchJson(SCHEMA_URL),
@@ -216,6 +235,7 @@ export async function fetchTc39Proposals(): Promise<SyncedProposal[]> {
     metadata,
     async (proposal) => {
       const readme = await fetchReadme(proposal.repositoryUrl);
+      warnReadmeStageConflict(proposal.id, proposal.stage, readme);
       return {
         ...proposal,
         readme,
