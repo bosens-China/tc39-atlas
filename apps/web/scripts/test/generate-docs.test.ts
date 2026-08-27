@@ -25,6 +25,7 @@ function sampleDataset(): AtlasDataset {
   return {
     schemaVersion: DATASET_SCHEMA_VERSION,
     generatedAt: '2026-08-08T00:00:00.000Z',
+    checkedAt: '2026-08-08T00:00:00.000Z',
     changes: [
       {
         id: 'change-example',
@@ -46,7 +47,7 @@ function sampleDataset(): AtlasDataset {
           status: 'active',
           repositoryUrl: 'https://github.com/tc39/proposal-example',
         },
-        occurredAt: '2026-08-08T00:00:00.000Z',
+        detectedAt: '2026-08-08T00:00:00.000Z',
       },
     ],
     proposals: [
@@ -214,6 +215,8 @@ describe('proposal documentation generator', () => {
     expect(sidebar).toContain('"tag": "未译"');
     expect(sidebar).not.toContain('"label": "示例提案"');
     expect(changes).toContain('/proposals/proposal-example.html');
+    expect(changes).toContain('| 检测时间 | 变化 | 提案 |');
+    expect(changes).toContain('数据检查于 2026年8月8日 00:00 UTC');
     await expect(
       readFile(join(docsRoot, 'zh', 'changes', 'year.md'), 'utf8'),
     ).resolves.toContain('/proposals/proposal-example.html');

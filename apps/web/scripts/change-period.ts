@@ -40,17 +40,17 @@ function periodStart(reference: Date, period: ChangePeriod): number {
   return Date.UTC(year, month, day);
 }
 
-/** 按数据集生成时间的 UTC 日历边界筛选，保证静态构建结果可复现。 */
+/** 按最近检查时间的 UTC 日历边界筛选，保证静态构建结果可复现。 */
 export function filterChanges(
   changes: readonly ProposalChange[],
-  generatedAt: string,
+  checkedAt: string,
   period: ChangePeriod,
 ): ProposalChange[] {
-  const reference = new Date(generatedAt);
+  const reference = new Date(checkedAt);
   const start = periodStart(reference, period);
   const end = reference.getTime();
   return changes.filter((change) => {
-    const time = Date.parse(change.occurredAt);
+    const time = Date.parse(change.detectedAt);
     return time >= start && time <= end;
   });
 }

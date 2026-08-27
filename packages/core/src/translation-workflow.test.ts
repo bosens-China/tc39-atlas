@@ -51,6 +51,7 @@ function dataset(
   return {
     schemaVersion: DATASET_SCHEMA_VERSION,
     generatedAt,
+    checkedAt: generatedAt,
     proposals,
     changes: [],
   };
@@ -202,7 +203,7 @@ describe('two-phase translation workflow', () => {
     });
   });
 
-  it('keeps published files when only observation timestamps change', async () => {
+  it('refreshes checkedAt without replacing unchanged proposal content', async () => {
     const root = await mkdtemp(join(tmpdir(), 'tc39-atlas-noop-'));
     temporaryDirectories.push(root);
     const workDirectory = join(root, '.cache');
@@ -254,9 +255,15 @@ describe('two-phase translation workflow', () => {
       readFile(join(outputDirectory, 'manifest.json'), 'utf8'),
     ]);
 
-    expect(result.changed).toBe(false);
-    expect(result.dataset).toEqual(previous);
-    expect(after).toEqual(before);
+    expect(result.changed).toBe(true);
+    expect(result.dataset).toEqual({
+      ...previous,
+      checkedAt: '2026-08-20T00:00:00.000Z',
+    });
+    expect(result.dataset.proposals[0]?.syncedAt).toBe(
+      '2026-08-20T00:00:00.000Z',
+    );
+    expect(after).not.toEqual(before);
   });
 
   it('rejects Agent results for another plan', async () => {

@@ -123,7 +123,7 @@ export function getProposalChanges(
 ): ProposalChange[] {
   const sinceTime = since.getTime();
   return changes
-    .filter((change) => Date.parse(change.occurredAt) >= sinceTime)
-    .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
+    .filter((change) => Date.parse(change.detectedAt) >= sinceTime)
+    .sort((left, right) => right.detectedAt.localeCompare(left.detectedAt))
     .slice(0, Math.min(Math.max(1, limit), MAX_RESULTS));
 }

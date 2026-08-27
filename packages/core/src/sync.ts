@@ -24,7 +24,7 @@ function change(
     kind,
     before,
     after: snapshot(proposal),
-    occurredAt: proposal.syncedAt,
+    detectedAt: proposal.syncedAt,
   };
 }
 
@@ -62,9 +62,9 @@ export function mergeProposalChanges(
   const cutoff = now.getTime() - CHANGE_RETENTION_DAYS * 86_400_000;
   const byId = new Map<string, ProposalChange>();
   for (const item of [...previous, ...current]) {
-    if (Date.parse(item.occurredAt) >= cutoff) byId.set(item.id, item);
+    if (Date.parse(item.detectedAt) >= cutoff) byId.set(item.id, item);
   }
   return [...byId.values()].sort((left, right) =>
-    right.occurredAt.localeCompare(left.occurredAt),
+    right.detectedAt.localeCompare(left.detectedAt),
   );
 }

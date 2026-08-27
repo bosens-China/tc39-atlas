@@ -54,6 +54,7 @@ const translated: AtlasProposal = {
 const empty: AtlasDataset = {
   schemaVersion: DATASET_SCHEMA_VERSION,
   generatedAt: new Date(0).toISOString(),
+  checkedAt: new Date(0).toISOString(),
   proposals: [],
   changes: [],
 };
@@ -104,10 +105,12 @@ describe('published dataset', () => {
     const older = {
       ...empty,
       generatedAt: '2026-08-08T00:00:00.000Z',
+      checkedAt: '2026-08-08T00:00:00.000Z',
     };
     const newer = {
       ...empty,
       generatedAt: '2026-08-09T00:00:00.000Z',
+      checkedAt: '2026-08-09T00:00:00.000Z',
     };
 
     expect(selectPreviousDataset(older, newer)).toBe(newer);
@@ -176,6 +179,7 @@ describe('published dataset', () => {
       parseAtlasDataset({
         schemaVersion: DATASET_SCHEMA_VERSION - 1,
         generatedAt: empty.generatedAt,
+        checkedAt: empty.checkedAt,
         proposals: [],
         translations: {},
         changes: [],
@@ -273,6 +277,7 @@ describe('published dataset', () => {
     const legacyInitial: AtlasDataset = {
       ...dataset,
       generatedAt: '2026-08-08T00:00:00.000Z',
+      checkedAt: '2026-08-08T00:00:00.000Z',
       changes: detectProposalChanges([], [translated]),
     };
     const anchored = buildAtlasDataset(
@@ -287,11 +292,13 @@ describe('published dataset', () => {
     const first = {
       ...empty,
       generatedAt: '2026-08-08T00:00:00.000Z',
+      checkedAt: '2026-08-08T00:00:00.000Z',
       proposals: [translated],
     };
     const observedLater = {
       ...first,
       generatedAt: '2026-08-09T00:00:00.000Z',
+      checkedAt: '2026-08-09T00:00:00.000Z',
       proposals: [
         {
           ...translated,

@@ -35,7 +35,7 @@ pnpm sync:translate
 }
 ```
 
-Agent 结果可以只覆盖部分计划项；配置模型密钥时，剩余项目由模型继续处理。`.cache/`、生成的提案 Markdown 和构建缓存均被 Git 忽略；本地完成后只需审查并提交 `apps/web/docs/public/data/dataset.json` 与 `manifest.json`。只有生成时间、提案同步时间或翻译完成时间变化时，`sync:translate` 会保留上一份正式数据文件；`pnpm sync` 会依次执行完整的两阶段流程。
+Agent 结果可以只覆盖部分计划项；配置模型密钥时，剩余项目由模型继续处理。`.cache/`、生成的提案 Markdown 和构建缓存均被 Git 忽略；本地完成后需要审查并提交 `apps/web/docs/public/data/dataset.json`、`manifest.json`、`.agents/skills/modernize-ecmascript/references/es*.md` 与生成器更新的 `SKILL.md` 年份入口区块。`sync:translate` 每次成功执行都会推进 `checkedAt`；没有提案语义变化时保留上一份提案内容和变化历史。`pnpm sync` 会依次执行完整的两阶段流程，并根据最终数据集刷新按 ECMAScript 版本拆分的 Skill 能力速览与正文年份入口；也可以通过 `pnpm generate:skill-references` 单独重新生成。
 
 ## 开源协议
 

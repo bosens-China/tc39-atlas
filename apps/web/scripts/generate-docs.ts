@@ -29,7 +29,7 @@ import {
 } from './change-period.js';
 import {
   copy,
-  formatDate,
+  formatDateTime,
   LANGUAGES,
   localizedTitle,
   markdownText,
@@ -113,16 +113,16 @@ function changesIndex(
 ): string {
   const value = copy[language];
   const title = changePeriodLabel(period, language);
-  const rows = filterChanges(dataset.changes, dataset.generatedAt, period)
-    .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
+  const rows = filterChanges(dataset.changes, dataset.checkedAt, period)
+    .sort((left, right) => right.detectedAt.localeCompare(left.detectedAt))
     .map((change) => {
       const title = markdownText(change.after.title);
       const path = proposalRoutePath(change.proposalId, language);
-      return `| ${formatDate(change.occurredAt, language)} | ${changeLabel(change, language)} | [${title}](${path}) |`;
+      return `| ${formatDateTime(change.detectedAt, language)} | ${changeLabel(change, language)} | [${title}](${path}) |`;
     });
   const content = rows.length
     ? [
-        `| ${value.occurredAt} | ${value.event} | ${value.title} |`,
+        `| ${value.detectedAt} | ${value.event} | ${value.title} |`,
         '| --- | --- | --- |',
         ...rows,
       ].join('\n')
@@ -134,7 +134,7 @@ function changesIndex(
     '',
     `# ${title}`,
     '',
-    `:::info\n${language === 'zh' ? `以数据集生成时间 ${formatDate(dataset.generatedAt, language)} 的 UTC 日历为准。` : `Calculated from the UTC calendar at dataset generation time, ${formatDate(dataset.generatedAt, language)}.`}\n:::`,
+    `:::info\n${language === 'zh' ? `数据检查于 ${formatDateTime(dataset.checkedAt, language)} UTC，变化按本站首次检测时间归入 UTC 自然周期。` : `Data checked at ${formatDateTime(dataset.checkedAt, language)} UTC; changes are grouped into UTC calendar periods by when this site first detected them.`}\n:::`,
     '',
     content,
     '',

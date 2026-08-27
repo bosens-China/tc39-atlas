@@ -46,6 +46,7 @@ function emptyDataset(): AtlasDataset {
   return {
     schemaVersion: DATASET_SCHEMA_VERSION,
     generatedAt: INITIAL_GENERATED_AT,
+    checkedAt: INITIAL_GENERATED_AT,
     proposals: [],
     changes: [],
   };
@@ -66,7 +67,7 @@ function isUnanchoredSnapshot(dataset: AtlasDataset): boolean {
     (change) =>
       change.kind === 'added' &&
       change.before === null &&
-      syncedAtById.get(change.proposalId) === change.occurredAt,
+      syncedAtById.get(change.proposalId) === change.detectedAt,
   );
 }
 
@@ -138,6 +139,7 @@ export function buildAtlasDataset(
   return {
     schemaVersion: DATASET_SCHEMA_VERSION,
     generatedAt: generatedAt.toISOString(),
+    checkedAt: generatedAt.toISOString(),
     proposals,
     changes: mergeProposalChanges(previousChanges, currentChanges, generatedAt),
   };
@@ -181,6 +183,7 @@ export function serializeDataset(dataset: AtlasDataset): string {
   const stored = atlasDatasetSchema.parse({
     schemaVersion: DATASET_SCHEMA_VERSION,
     generatedAt: dataset.generatedAt,
+    checkedAt: dataset.checkedAt,
     proposals,
     translations,
     changes: dataset.changes,
@@ -232,6 +235,7 @@ export function createDatasetManifest(
     schemaVersion: DATASET_SCHEMA_VERSION,
     revision: sha256,
     generatedAt: dataset.generatedAt,
+    checkedAt: dataset.checkedAt,
     dataset: {
       url: DATASET_FILE_NAME,
       sha256,
@@ -272,6 +276,7 @@ async function readPublishedDataset(
     if (
       manifest.revision !== expected.revision ||
       manifest.generatedAt !== expected.generatedAt ||
+      manifest.checkedAt !== expected.checkedAt ||
       manifest.dataset.sha256 !== expected.dataset.sha256 ||
       manifest.dataset.bytes !== expected.dataset.bytes
     ) {
@@ -311,14 +316,14 @@ async function fetchPreviousDataset(url: string): Promise<AtlasDataset | null> {
   }
 }
 
-/** 选择最新的有效快照，避免线上旧数据覆盖仓库中刚完成的译文。 */
+/** 选择最近成功检查的有效快照，避免线上旧数据覆盖仓库内容。 */
 export function selectPreviousDataset(
   remote: AtlasDataset | null,
   local: AtlasDataset | null,
 ): AtlasDataset | null {
   if (!remote) return local;
   if (!local) return remote;
-  return remote.generatedAt >= local.generatedAt ? remote : local;
+  return remote.checkedAt >= local.checkedAt ? remote : local;
 }
 
 async function writeAtomically(path: string, contents: string): Promise<void> {
@@ -361,19 +366,23 @@ export async function writeAtlasDataset(
   return { manifest, serialized };
 }
 
-/** 语义内容未变化时保留上一份正式文件，避免观测时间触发空发布。 */
+/** 语义未变化时只推进检查时间，保留上一份提案快照和变化历史。 */
 export async function writeAtlasDatasetIfChanged(
   dataset: AtlasDataset,
   outputDirectory: string,
 ): Promise<WriteAtlasDatasetResult> {
   const published = await readPublishedDataset(outputDirectory);
-  if (
-    published &&
-    datasetSemanticRevision(published.dataset) ===
-      datasetSemanticRevision(dataset)
-  ) {
+  const semanticChanged =
+    !published ||
+    datasetSemanticRevision(published.dataset) !==
+      datasetSemanticRevision(dataset);
+  const next = semanticChanged
+    ? dataset
+    : { ...published.dataset, checkedAt: dataset.checkedAt };
+  const serialized = serializeDataset(next);
+  if (published?.serialized === serialized) {
     return { ...published, changed: false };
   }
-  const written = await writeAtlasDataset(dataset, outputDirectory);
-  return { ...written, changed: true, dataset };
+  const written = await writeAtlasDataset(next, outputDirectory);
+  return { ...written, changed: true, dataset: next };
 }

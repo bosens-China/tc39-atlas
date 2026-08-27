@@ -34,6 +34,7 @@ describe('proposal sidebar', () => {
     const dataset: AtlasDataset = {
       schemaVersion: DATASET_SCHEMA_VERSION,
       generatedAt: '2026-08-09T00:00:00.000Z',
+      checkedAt: '2026-08-09T00:00:00.000Z',
       proposals: [older, newer],
       changes: [
         {
@@ -42,7 +43,7 @@ describe('proposal sidebar', () => {
           kind: 'added',
           before: null,
           after: newer,
-          occurredAt: '2026-08-08T00:00:00.000Z',
+          detectedAt: '2026-08-08T00:00:00.000Z',
         },
         {
           id: 'older-added',
@@ -50,7 +51,7 @@ describe('proposal sidebar', () => {
           kind: 'added',
           before: null,
           after: older,
-          occurredAt: '2026-08-01T00:00:00.000Z',
+          detectedAt: '2026-08-01T00:00:00.000Z',
         },
       ],
     };
@@ -86,6 +87,7 @@ describe('proposal sidebar', () => {
     const dataset: AtlasDataset = {
       schemaVersion: DATASET_SCHEMA_VERSION,
       generatedAt: '2026-08-09T00:00:00.000Z',
+      checkedAt: '2026-08-09T00:00:00.000Z',
       proposals: [noSource],
       changes: [],
     };

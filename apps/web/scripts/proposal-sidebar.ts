@@ -20,7 +20,7 @@ export function proposalSidebar(
   const addedAtById = new Map(
     dataset.changes
       .filter((change) => change.kind === 'added')
-      .map((change) => [change.proposalId, change.occurredAt]),
+      .map((change) => [change.proposalId, change.detectedAt]),
   );
   const sortByTime = (left: AtlasProposal, right: AtlasProposal) => {
     const time = (proposal: AtlasProposal) =>

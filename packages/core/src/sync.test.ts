@@ -53,12 +53,12 @@ describe('proposal synchronization', () => {
     const retained = current.map((item) => ({
       ...item,
       id: 'retained',
-      occurredAt: '2026-01-01T00:00:00.000Z',
+      detectedAt: '2026-01-01T00:00:00.000Z',
     }));
     const expired = current.map((item) => ({
       ...item,
       id: 'expired',
-      occurredAt: '2025-08-06T00:00:00.000Z',
+      detectedAt: '2025-08-06T00:00:00.000Z',
     }));
     expect(
       mergeProposalChanges(

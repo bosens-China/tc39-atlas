@@ -40,7 +40,7 @@ export const copy = {
       '以下 README 来自上游仓库，其中的阶段或状态标注可能滞后；当前信息以提案概览为准。',
     title: '提案',
     event: '变化',
-    occurredAt: '时间',
+    detectedAt: '检测时间',
     unstaged: '未分阶段',
   },
   en: {
@@ -68,7 +68,7 @@ export const copy = {
       'The README below comes from the upstream repository and may contain outdated stage or status metadata. Use the proposal details above as the current source of truth.',
     title: 'Proposal',
     event: 'Change',
-    occurredAt: 'Date',
+    detectedAt: 'Detected',
     unstaged: 'Unstaged',
   },
 } as const;
@@ -98,6 +98,15 @@ export function formatDate(value: string, language: Language): string {
   return new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en', {
     dateStyle: 'medium',
     timeZone: 'UTC',
+  }).format(new Date(value));
+}
+
+export function formatDateTime(value: string, language: Language): string {
+  return new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'UTC',
+    hourCycle: 'h23',
   }).format(new Date(value));
 }
 

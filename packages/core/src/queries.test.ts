@@ -84,7 +84,7 @@ describe('proposal queries', () => {
         kind: 'added' as const,
         before: null,
         after: base,
-        occurredAt: '2026-08-08T00:00:00.000Z',
+        detectedAt: '2026-08-08T00:00:00.000Z',
       },
       {
         id: 'old',
@@ -92,7 +92,7 @@ describe('proposal queries', () => {
         kind: 'added' as const,
         before: null,
         after: base,
-        occurredAt: '2026-07-01T00:00:00.000Z',
+        detectedAt: '2026-07-01T00:00:00.000Z',
       },
     ];
     expect(getProposalChanges(changes, new Date('2026-08-01'))).toHaveLength(1);

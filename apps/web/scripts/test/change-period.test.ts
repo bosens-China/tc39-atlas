@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { filterChanges } from '../change-period.js';
 
-function change(id: string, occurredAt: string): ProposalChange {
+function change(id: string, detectedAt: string): ProposalChange {
   return {
     id,
     proposalId: id,
@@ -17,12 +17,12 @@ function change(id: string, occurredAt: string): ProposalChange {
       status: 'active',
       repositoryUrl: `https://github.com/tc39/${id}`,
     },
-    occurredAt,
+    detectedAt,
   };
 }
 
 describe('change periods', () => {
-  const generatedAt = '2026-08-09T12:00:00.000Z';
+  const checkedAt = '2026-08-09T12:00:00.000Z';
   const changes = [
     change('today', '2026-08-09T00:00:00.000Z'),
     change('week', '2026-08-03T00:00:00.000Z'),
@@ -41,7 +41,7 @@ describe('change periods', () => {
     ['year', ['today', 'week', 'month', 'quarter', 'year']],
   ] as const)('filters %s using UTC calendar boundaries', (period, ids) => {
     expect(
-      filterChanges(changes, generatedAt, period).map((item) => item.id),
+      filterChanges(changes, checkedAt, period).map((item) => item.id),
     ).toEqual(ids);
   });
 });

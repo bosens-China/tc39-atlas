@@ -6,7 +6,7 @@ import {
   translationContentHash,
 } from './translation-cache-key.js';
 
-export const DATASET_SCHEMA_VERSION = 6;
+export const DATASET_SCHEMA_VERSION = 7;
 export const proposalStages = [0, 1, 2, 2.7, 3, 4] as const;
 export const proposalStatuses = [
   'active',
@@ -93,13 +93,14 @@ export const proposalChangeSchema = z.object({
   kind: proposalChangeKindSchema,
   before: proposalSnapshotSchema.nullable(),
   after: proposalSnapshotSchema,
-  occurredAt: z.string().datetime(),
+  detectedAt: z.string().datetime(),
 });
 
 // 磁盘格式只保存文章引用，解析后再还原为业务层使用的完整提案。
 export const atlasDatasetSchema = z.object({
   schemaVersion: z.literal(DATASET_SCHEMA_VERSION),
   generatedAt: z.string().datetime(),
+  checkedAt: z.string().datetime(),
   proposals: z.array(storedAtlasProposalSchema),
   translations: z.record(
     z.string().regex(/^[a-f0-9]{64}$/),
@@ -112,6 +113,7 @@ export const datasetManifestSchema = z.object({
   schemaVersion: z.literal(DATASET_SCHEMA_VERSION),
   revision: z.string().regex(/^[a-f0-9]{64}$/),
   generatedAt: z.string().datetime(),
+  checkedAt: z.string().datetime(),
   dataset: z.object({
     url: z.string().min(1),
     sha256: z.string().regex(/^[a-f0-9]{64}$/),
@@ -133,6 +135,7 @@ export type ProposalChange = z.infer<typeof proposalChangeSchema>;
 export interface AtlasDataset {
   schemaVersion: typeof DATASET_SCHEMA_VERSION;
   generatedAt: string;
+  checkedAt: string;
   proposals: AtlasProposal[];
   changes: ProposalChange[];
 }
@@ -157,6 +160,7 @@ export interface SyncedProposal extends ProposalSnapshot {
 
 interface ReferencedDatasetData {
   generatedAt: string;
+  checkedAt: string;
   proposals: Array<z.infer<typeof storedAtlasProposalSchema>>;
   translations: Record<string, TranslationCacheEntry>;
   changes: ProposalChange[];
@@ -166,6 +170,7 @@ function hydrateReferencedDataset(data: ReferencedDatasetData): AtlasDataset {
   return {
     schemaVersion: DATASET_SCHEMA_VERSION,
     generatedAt: data.generatedAt,
+    checkedAt: data.checkedAt,
     proposals: data.proposals.map((proposal) => {
       const cached = proposal.translationRef
         ? data.translations[proposal.translationRef]
