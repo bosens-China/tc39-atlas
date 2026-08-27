@@ -1,0 +1,82 @@
+[
+  {
+    "query": "帮我修一下 apps/server/src/cache.ts 里的过期判断，顺便按项目现有风格把新写的运行时代码补完整。",
+    "should_trigger": true
+  },
+  {
+    "query": "在这个 React 项目的 UserPanel.tsx 里实现批量选择，别改组件对外 props。",
+    "should_trigger": true
+  },
+  {
+    "query": "给 scripts/release.mjs 加一个读取参数并去重 tag 的函数，Node 版本以仓库配置为准。",
+    "should_trigger": true
+  },
+  {
+    "query": "只调整 src/contracts.d.ts：增加一个泛型响应类型并复用现有 interface，不涉及 JS 输出。",
+    "should_trigger": true
+  },
+  {
+    "query": "ES2027 有哪些正式能力？按用途列一下，具体提案给链接就行。",
+    "should_trigger": true
+  },
+  {
+    "query": "我们还是 Node 20，Object.groupBy 在这个服务里到底能不能直接用？先判断兼容性。",
+    "should_trigger": true
+  },
+  {
+    "query": "这个 TS 服务可以用 await using 自动释放数据库连接吗？需要哪些编译和运行时条件？",
+    "should_trigger": true
+  },
+  {
+    "query": "审查 packages/utils 下的 JavaScript，找出能用稳定 ECMAScript 能力安全简化的地方，先别改。",
+    "should_trigger": true
+  },
+  {
+    "query": "库的输出目标是 ES2022，但源码想用 ES2025 已稳定的语法，帮我实现这个序列化模块并确认构建链能处理。",
+    "should_trigger": true
+  },
+  {
+    "query": "把 src/legacy.js 里手写的异步和集合辅助逻辑做一次现代化审查，不能提高浏览器基线。",
+    "should_trigger": true
+  },
+  {
+    "query": "解释一下 TypeScript 的 distributive conditional types，为什么 T extends unknown 会分发？不需要改代码。",
+    "should_trigger": false
+  },
+  {
+    "query": "帮我把这个页面的 CSS nesting 展开，兼容旧版 Safari，JavaScript 不动。",
+    "should_trigger": false
+  },
+  {
+    "query": "更新 config/schema.json，让 status 字段只能是 pending、done 或 failed。",
+    "should_trigger": false
+  },
+  {
+    "query": "React 19 的 useOptimistic 到底解决什么问题？给我官方文档和一个概念示例，不改仓库。",
+    "should_trigger": false
+  },
+  {
+    "query": "pnpm workspace 安装时提示 lockfile 配置不兼容，帮我定位 package manager 配置。",
+    "should_trigger": false
+  },
+  {
+    "query": "下一次 TC39 plenary 是什么时候，提案从 Stage 2 到 Stage 2.7 需要怎样的委员会流程？",
+    "should_trigger": false
+  },
+  {
+    "query": "写一份 V8 Ignition 和 TurboFan 的架构说明，重点讲字节码到优化机器码的过程。",
+    "should_trigger": false
+  },
+  {
+    "query": "把这个 Java 21 DTO 改成 record，并保留 Jackson 的字段名映射。",
+    "should_trigger": false
+  },
+  {
+    "query": "优化 reports/monthly.sql，按 customer_id 聚合后取每组最新一条记录。",
+    "should_trigger": false
+  },
+  {
+    "query": "把 docs/javascript-history.md 这篇英文文章翻译成中文，代码块保持原样。",
+    "should_trigger": false
+  }
+]

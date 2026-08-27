@@ -1,0 +1,82 @@
+{
+  "skill_name": "modernize-ecmascript",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "在 src/types.ts 里增加 Paginated<T> 类型，并把现有接口的重复字段提取成一个类型别名。这次只改类型，不涉及运行时代码。",
+      "expected_output": "完成类型修改，同时静默结束 ECMAScript 现代化判断，不调查转换链、运行时或提案资料。",
+      "files": [],
+      "expectations": [
+        "识别本次修改只包含编译后擦除的 TypeScript 类型内容",
+        "不读取年度文件、llms.txt 或完整转换链",
+        "最终结果不额外汇报跳过现代化的原因"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "只修 packages/api/src/retry.ts 里重试次数多执行一次的问题，保持最小 diff，不要顺手重构周围代码。",
+      "expected_output": "修复运行时问题，只在必要的新代码中使用已经确认安全的语法，不为现代化改写既有实现。",
+      "files": [],
+      "expectations": [
+        "尊重最小改动和不要重构的明确约束",
+        "不扫描或改写任务范围之外的旧代码",
+        "如果没有明确现代化候选，直接完成原任务"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "请在 packages/core/src/records.ts 实现 deduplicateRecords，项目现有构建配置和代码风格都沿用即可。",
+      "expected_output": "先为当前新增运行时代码形成局部候选，只有存在候选时才读取必要的转换链证据并采用安全的 Stage 4 语法。",
+      "files": [],
+      "expectations": [
+        "候选发现限制在本次新写或触及的代码区域",
+        "没有候选时不预加载年度资料或完整工具链",
+        "采用能力时说明或验证其解析、转换与行为等价门槛"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "这个服务目标是 Node 20，可以把现有 reduce 分组逻辑换成 Object.groupBy 吗？先帮我判断，不要改代码。",
+      "expected_output": "将 Object.groupBy 作为运行时内置 API 调查，核对目标 Node 版本支持，不以 Stage 4 或 TypeScript lib 单独证明可用。",
+      "files": [],
+      "expectations": [
+        "保持纯能力咨询，不修改代码",
+        "核对目标运行时而不是只核对规范阶段或类型声明",
+        "缺少原生支持时说明 polyfill、替代写法或基线选择"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "我想在这个 TypeScript 服务里用 await using 管理连接，目标环境你从仓库里看，能用的话直接实现。",
+      "expected_output": "把包含语法和资源释放协议的能力按运行时敏感能力处理，分别验证解析转换与运行时协议后再决定是否实现。",
+      "files": [],
+      "expectations": [
+        "不把包含新语法的能力自动归类为纯语法",
+        "分别检查解析转换和运行时协议支持",
+        "需要新增依赖、polyfill 或提高基线时先取得用户确认"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "ES2027 目前有哪些已经进入标准的能力？按作用简单介绍，并给我可以继续阅读的链接。",
+      "expected_output": "只读取 ES2027 年度速览形成列表，并在需要理解具体能力时沿条目链接读取线上提案。",
+      "files": [],
+      "expectations": [
+        "先读取对应的单个年度文件而不是加载所有年份",
+        "保留条目当前 Stage、状态和作用摘要",
+        "需要最新状态或具体细节时使用线上 Atlas 资料"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "审查 packages/core 里可以用现代 ECMAScript 简化的写法，先给我候选和兼容性依据，不要修改。",
+      "expected_output": "进入显式审查模式，在指定包内先形成候选，再按候选调查转换链和兼容性，只输出分析。",
+      "files": [],
+      "expectations": [
+        "扫描范围限制在用户指定的包",
+        "先定位候选再读取相关配置和提案资料",
+        "只报告分析，不修改代码"
+      ]
+    }
+  ]
+}
