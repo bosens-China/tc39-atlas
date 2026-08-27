@@ -26,8 +26,6 @@ concurrency:
 
 jobs:
   build:
-    outputs:
-      should_deploy: ${{ steps.release.outputs.should_deploy }}
     permissions:
       contents: write
       pages: write
@@ -66,52 +64,37 @@ jobs:
           TRANSLATION_MODEL: ${{ vars.TRANSLATION_MODEL }}
           TRANSLATION_MAX_OUTPUT_TOKENS: ${{ vars.TRANSLATION_MAX_OUTPUT_TOKENS }}
 
-      - name: Decide whether to publish
-        id: release
-        env:
-          EVENT_NAME: ${{ github.event_name }}
+      - name: Generate ECMAScript edition references
         run: |
-          if git diff --quiet -- apps/web/docs/public/data/dataset.json apps/web/docs/public/data/manifest.json; then
-            data_changed=false
-          else
-            data_changed=true
-          fi
-          if [[ "$EVENT_NAME" == "schedule" && "$data_changed" == "false" ]]; then
-            should_deploy=false
-          else
-            should_deploy=true
-          fi
-          echo "data_changed=$data_changed" >> "$GITHUB_OUTPUT"
-          echo "should_deploy=$should_deploy" >> "$GITHUB_OUTPUT"
+          pnpm generate:skill-references
+          pnpm exec prettier --check .agents/skills/modernize-ecmascript/SKILL.md .agents/skills/modernize-ecmascript/references
 
       - name: Build the website
-        if: steps.release.outputs.should_deploy == 'true'
         run: pnpm --filter @tc39-atlas/web build
         env:
           BASE_PATH: /${{ github.event.repository.name }}/
 
-      - name: Persist the generated dataset
-        if: steps.release.outputs.should_deploy == 'true' && github.ref == 'refs/heads/main'
+      - name: Persist generated data and Skill references
+        if: github.ref == 'refs/heads/main'
         run: |
-          if git diff --quiet -- apps/web/docs/public/data/dataset.json apps/web/docs/public/data/manifest.json; then
-            echo "Generated dataset is unchanged; skipping commit."
+          git add -- apps/web/docs/public/data/dataset.json apps/web/docs/public/data/manifest.json
+          git add -- .agents/skills/modernize-ecmascript/SKILL.md
+          git add -A -- .agents/skills/modernize-ecmascript/references
+          if git diff --cached --quiet; then
+            echo "Generated data and Skill references are unchanged; skipping commit."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- apps/web/docs/public/data/dataset.json apps/web/docs/public/data/manifest.json
-          git commit -m "chore(data): refresh generated dataset [skip ci]"
+          git commit -m "chore(data): refresh generated data and skill references [skip ci]"
           git push origin HEAD:main
 
-      - if: steps.release.outputs.should_deploy == 'true'
-        uses: actions/configure-pages@v5
-      - if: steps.release.outputs.should_deploy == 'true'
-        uses: actions/upload-pages-artifact@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
         with:
           path: apps/web/doc_build
 
   deploy:
-    if: needs.build.outputs.should_deploy == 'true'
     permissions:
       contents: read
       pages: write

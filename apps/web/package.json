@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "pnpm generate:docs && rspress dev",
     "generate:docs": "tsx scripts/generate-docs.ts",
+    "generate:skill-references": "tsx scripts/generate-skill-references.ts",
     "build": "pnpm generate:docs && rspress build",
     "lint": "eslint .",
     "test": "vitest run",
