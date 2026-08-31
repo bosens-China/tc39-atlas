@@ -1,7 +1,7 @@
 {
   "schemaVersion": 7,
   "generatedAt": "2026-08-29T02:45:00.724Z",
-  "checkedAt": "2026-08-30T22:27:55.414Z",
+  "checkedAt": "2026-08-31T23:39:51.764Z",
   "proposals": [
     {
       "id": "callable-class-constructors",
