@@ -1,7 +1,27 @@
 [
-  { "type": "file", "name": "today", "label": "Today" },
-  { "type": "file", "name": "week", "label": "This week" },
-  { "type": "file", "name": "month", "label": "This month" },
-  { "type": "file", "name": "quarter", "label": "This quarter" },
-  { "type": "file", "name": "year", "label": "This year" }
+  {
+    "type": "file",
+    "name": "today",
+    "label": "Latest daily update"
+  },
+  {
+    "type": "file",
+    "name": "week",
+    "label": "Last 7 days"
+  },
+  {
+    "type": "file",
+    "name": "month",
+    "label": "Last month"
+  },
+  {
+    "type": "file",
+    "name": "quarter",
+    "label": "Last 3 months"
+  },
+  {
+    "type": "file",
+    "name": "year",
+    "label": "Last year"
+  }
 ]

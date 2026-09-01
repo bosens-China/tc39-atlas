@@ -21,7 +21,7 @@ export const copy = {
     proposals: '提案目录',
     proposalsDescription: '按阶段浏览 TC39 提案、中文译文与官方原文。',
     changes: '周期动态',
-    changesDescription: '按 UTC 日历周期查看 TC39 提案变化。',
+    changesDescription: '按北京时间日更批次查看 TC39 提案的滚动变化。',
     indexTip: '使用左侧栏按阶段浏览，或使用右上角全文搜索查找标题与正文。',
     emptyProposals:
       '当前数据集还没有提案。完成同步后，这里会自动生成提案目录。',
@@ -48,7 +48,8 @@ export const copy = {
     proposalsDescription:
       'Browse TC39 proposals, translations, and source text by stage.',
     changes: 'Recent changes',
-    changesDescription: 'TC39 proposal changes grouped by UTC calendar period.',
+    changesDescription:
+      'Rolling TC39 proposal changes grouped by Asia/Shanghai daily updates.',
     indexTip:
       'Browse by stage in the sidebar, or use full-text search in the top-right corner.',
     emptyProposals:
@@ -101,13 +102,24 @@ export function formatDate(value: string, language: Language): string {
   }).format(new Date(value));
 }
 
-export function formatDateTime(value: string, language: Language): string {
+export function formatDateTime(
+  value: string,
+  language: Language,
+  timeZone = 'UTC',
+): string {
   return new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en', {
     dateStyle: 'medium',
     timeStyle: 'short',
-    timeZone: 'UTC',
+    timeZone,
     hourCycle: 'h23',
   }).format(new Date(value));
+}
+
+export function formatReportDate(value: string, language: Language): string {
+  return new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en', {
+    dateStyle: 'medium',
+    timeZone: 'UTC',
+  }).format(new Date(`${value}T00:00:00.000Z`));
 }
 
 export function markdownText(value: string): string {

@@ -35,6 +35,8 @@ describe('proposal sidebar', () => {
       schemaVersion: DATASET_SCHEMA_VERSION,
       generatedAt: '2026-08-09T00:00:00.000Z',
       checkedAt: '2026-08-09T00:00:00.000Z',
+      reportDate: '2026-08-09',
+      previousReportDate: '2026-08-08',
       proposals: [older, newer],
       changes: [
         {
@@ -44,6 +46,7 @@ describe('proposal sidebar', () => {
           before: null,
           after: newer,
           detectedAt: '2026-08-08T00:00:00.000Z',
+          reportDate: '2026-08-08',
         },
         {
           id: 'older-added',
@@ -52,6 +55,7 @@ describe('proposal sidebar', () => {
           before: null,
           after: older,
           detectedAt: '2026-08-01T00:00:00.000Z',
+          reportDate: '2026-08-01',
         },
       ],
     };
@@ -88,6 +92,8 @@ describe('proposal sidebar', () => {
       schemaVersion: DATASET_SCHEMA_VERSION,
       generatedAt: '2026-08-09T00:00:00.000Z',
       checkedAt: '2026-08-09T00:00:00.000Z',
+      reportDate: '2026-08-09',
+      previousReportDate: '2026-08-08',
       proposals: [noSource],
       changes: [],
     };

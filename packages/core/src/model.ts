@@ -6,7 +6,8 @@ import {
   translationContentHash,
 } from './translation-cache-key.js';
 
-export const DATASET_SCHEMA_VERSION = 7;
+export const DATASET_SCHEMA_VERSION = 8;
+export const reportDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 export const proposalStages = [0, 1, 2, 2.7, 3, 4] as const;
 export const proposalStatuses = [
   'active',
@@ -94,6 +95,7 @@ export const proposalChangeSchema = z.object({
   before: proposalSnapshotSchema.nullable(),
   after: proposalSnapshotSchema,
   detectedAt: z.string().datetime(),
+  reportDate: reportDateSchema,
 });
 
 // 磁盘格式只保存文章引用，解析后再还原为业务层使用的完整提案。
@@ -101,6 +103,8 @@ export const atlasDatasetSchema = z.object({
   schemaVersion: z.literal(DATASET_SCHEMA_VERSION),
   generatedAt: z.string().datetime(),
   checkedAt: z.string().datetime(),
+  reportDate: reportDateSchema,
+  previousReportDate: reportDateSchema.nullable(),
   proposals: z.array(storedAtlasProposalSchema),
   translations: z.record(
     z.string().regex(/^[a-f0-9]{64}$/),
@@ -114,6 +118,7 @@ export const datasetManifestSchema = z.object({
   revision: z.string().regex(/^[a-f0-9]{64}$/),
   generatedAt: z.string().datetime(),
   checkedAt: z.string().datetime(),
+  reportDate: reportDateSchema,
   dataset: z.object({
     url: z.string().min(1),
     sha256: z.string().regex(/^[a-f0-9]{64}$/),
@@ -136,6 +141,8 @@ export interface AtlasDataset {
   schemaVersion: typeof DATASET_SCHEMA_VERSION;
   generatedAt: string;
   checkedAt: string;
+  reportDate: string;
+  previousReportDate: string | null;
   proposals: AtlasProposal[];
   changes: ProposalChange[];
 }
@@ -161,6 +168,8 @@ export interface SyncedProposal extends ProposalSnapshot {
 interface ReferencedDatasetData {
   generatedAt: string;
   checkedAt: string;
+  reportDate: string;
+  previousReportDate: string | null;
   proposals: Array<z.infer<typeof storedAtlasProposalSchema>>;
   translations: Record<string, TranslationCacheEntry>;
   changes: ProposalChange[];
@@ -171,6 +180,8 @@ function hydrateReferencedDataset(data: ReferencedDatasetData): AtlasDataset {
     schemaVersion: DATASET_SCHEMA_VERSION,
     generatedAt: data.generatedAt,
     checkedAt: data.checkedAt,
+    reportDate: data.reportDate,
+    previousReportDate: data.previousReportDate,
     proposals: data.proposals.map((proposal) => {
       const cached = proposal.translationRef
         ? data.translations[proposal.translationRef]

@@ -17,6 +17,7 @@ function change(
   proposal: SyncedProposal,
   kind: ProposalChangeKind,
   before: ProposalSnapshot | null,
+  reportDate: string,
 ): ProposalChange {
   return {
     id: `${proposal.syncedAt}:${proposal.id}:${kind}`,
@@ -25,6 +26,7 @@ function change(
     before,
     after: snapshot(proposal),
     detectedAt: proposal.syncedAt,
+    reportDate,
   };
 }
 
@@ -32,6 +34,7 @@ function change(
 export function detectProposalChanges(
   current: readonly AtlasProposal[],
   incoming: readonly SyncedProposal[],
+  reportDate: string,
 ): ProposalChange[] {
   const byId = new Map(current.map((proposal) => [proposal.id, proposal]));
   const changes: ProposalChange[] = [];
@@ -39,15 +42,19 @@ export function detectProposalChanges(
   for (const proposal of incoming) {
     const before = byId.get(proposal.id);
     if (!before) {
-      changes.push(change(proposal, 'added', null));
+      changes.push(change(proposal, 'added', null, reportDate));
       continue;
     }
     const beforeSnapshot = snapshot(before);
     if (before.stage !== proposal.stage) {
-      changes.push(change(proposal, 'stage_changed', beforeSnapshot));
+      changes.push(
+        change(proposal, 'stage_changed', beforeSnapshot, reportDate),
+      );
     }
     if (before.status !== proposal.status && proposal.status !== 'active') {
-      changes.push(change(proposal, proposal.status, beforeSnapshot));
+      changes.push(
+        change(proposal, proposal.status, beforeSnapshot, reportDate),
+      );
     }
   }
 

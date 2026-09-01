@@ -26,6 +26,8 @@ function sampleDataset(): AtlasDataset {
     schemaVersion: DATASET_SCHEMA_VERSION,
     generatedAt: '2026-08-08T00:00:00.000Z',
     checkedAt: '2026-08-08T00:00:00.000Z',
+    reportDate: '2026-08-08',
+    previousReportDate: '2026-08-07',
     changes: [
       {
         id: 'change-example',
@@ -48,6 +50,7 @@ function sampleDataset(): AtlasDataset {
           repositoryUrl: 'https://github.com/tc39/proposal-example',
         },
         detectedAt: '2026-08-08T00:00:00.000Z',
+        reportDate: '2026-08-08',
       },
     ],
     proposals: [
@@ -216,7 +219,9 @@ describe('proposal documentation generator', () => {
     expect(sidebar).not.toContain('"label": "示例提案"');
     expect(changes).toContain('/proposals/proposal-example.html');
     expect(changes).toContain('| 检测时间 | 变化 | 提案 |');
-    expect(changes).toContain('数据检查于 2026年8月8日 00:00 UTC');
+    expect(changes).toContain(
+      '统计范围：2026年8月1日之后至 2026年8月8日（含）',
+    );
     await expect(
       readFile(join(docsRoot, 'zh', 'changes', 'year.md'), 'utf8'),
     ).resolves.toContain('/proposals/proposal-example.html');

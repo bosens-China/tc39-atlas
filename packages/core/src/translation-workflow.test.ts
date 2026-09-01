@@ -52,6 +52,8 @@ function dataset(
     schemaVersion: DATASET_SCHEMA_VERSION,
     generatedAt,
     checkedAt: generatedAt,
+    reportDate: generatedAt.slice(0, 10),
+    previousReportDate: null,
     proposals,
     changes: [],
   };
@@ -217,19 +219,22 @@ describe('two-phase translation workflow', () => {
       readFile(join(outputDirectory, 'dataset.json'), 'utf8'),
       readFile(join(outputDirectory, 'manifest.json'), 'utf8'),
     ]);
-    const snapshot = dataset(
-      [
-        {
-          ...previousProposal,
-          syncedAt: '2026-08-20T00:00:00.000Z',
-          translation: {
-            ...previousProposal.translation,
-            translatedAt: '2026-08-20T00:00:00.000Z',
+    const snapshot = {
+      ...dataset(
+        [
+          {
+            ...previousProposal,
+            syncedAt: '2026-08-20T00:00:00.000Z',
+            translation: {
+              ...previousProposal.translation,
+              translatedAt: '2026-08-20T00:00:00.000Z',
+            },
           },
-        },
-      ],
-      '2026-08-20T00:00:00.000Z',
-    );
+        ],
+        '2026-08-20T00:00:00.000Z',
+      ),
+      previousReportDate: previous.reportDate,
+    };
     const serialized = serializeDataset(snapshot);
     const plan = createTranslationPlan(previous, snapshot, serialized);
     await Promise.all([
@@ -259,6 +264,8 @@ describe('two-phase translation workflow', () => {
     expect(result.dataset).toEqual({
       ...previous,
       checkedAt: '2026-08-20T00:00:00.000Z',
+      reportDate: '2026-08-20',
+      previousReportDate: '2026-08-19',
     });
     expect(result.dataset.proposals[0]?.syncedAt).toBe(
       '2026-08-20T00:00:00.000Z',

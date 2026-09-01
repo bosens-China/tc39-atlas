@@ -85,6 +85,7 @@ describe('proposal queries', () => {
         before: null,
         after: base,
         detectedAt: '2026-08-08T00:00:00.000Z',
+        reportDate: '2026-08-08',
       },
       {
         id: 'old',
@@ -93,6 +94,7 @@ describe('proposal queries', () => {
         before: null,
         after: base,
         detectedAt: '2026-07-01T00:00:00.000Z',
+        reportDate: '2026-07-01',
       },
     ];
     expect(getProposalChanges(changes, new Date('2026-08-01'))).toHaveLength(1);

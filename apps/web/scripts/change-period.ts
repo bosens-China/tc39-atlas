@@ -12,12 +12,17 @@ export const CHANGE_PERIODS = [
 export type ChangePeriod = (typeof CHANGE_PERIODS)[number];
 
 const PERIOD_LABELS: Record<ChangePeriod, { zh: string; en: string }> = {
-  today: { zh: '今日变化', en: 'Today' },
-  week: { zh: '本周变化', en: 'This week' },
-  month: { zh: '本月变化', en: 'This month' },
-  quarter: { zh: '本季度变化', en: 'This quarter' },
-  year: { zh: '本年变化', en: 'This year' },
+  today: { zh: '本次日更', en: 'Latest daily update' },
+  week: { zh: '近 7 日变化', en: 'Last 7 days' },
+  month: { zh: '近 1 个月变化', en: 'Last month' },
+  quarter: { zh: '近 3 个月变化', en: 'Last 3 months' },
+  year: { zh: '近 1 年变化', en: 'Last year' },
 };
+
+export interface ChangePeriodRange {
+  endInclusive: string;
+  startExclusive: string;
+}
 
 export function changePeriodLabel(
   period: ChangePeriod,
@@ -26,31 +31,60 @@ export function changePeriodLabel(
   return PERIOD_LABELS[period][language];
 }
 
-function periodStart(reference: Date, period: ChangePeriod): number {
-  const year = reference.getUTCFullYear();
-  const month = reference.getUTCMonth();
-  const day = reference.getUTCDate();
-  if (period === 'year') return Date.UTC(year, 0, 1);
-  if (period === 'quarter') return Date.UTC(year, month - (month % 3), 1);
-  if (period === 'month') return Date.UTC(year, month, 1);
-  if (period === 'week') {
-    const mondayOffset = (reference.getUTCDay() + 6) % 7;
-    return Date.UTC(year, month, day - mondayOffset);
-  }
-  return Date.UTC(year, month, day);
+function reportDateParts(value: string): readonly [number, number, number] {
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) throw new Error(`Invalid report date: ${value}`);
+  return [year, month - 1, day];
 }
 
-/** 按最近检查时间的 UTC 日历边界筛选，保证静态构建结果可复现。 */
+function formatReportDate(value: number): string {
+  return new Date(value).toISOString().slice(0, 10);
+}
+
+function subtractDays(value: string, days: number): string {
+  const [year, month, day] = reportDateParts(value);
+  return formatReportDate(Date.UTC(year, month, day - days));
+}
+
+/** 日历月减法在月末自动收敛到目标月份的最后一天。 */
+function subtractMonths(value: string, months: number): string {
+  const [year, month, day] = reportDateParts(value);
+  const target = year * 12 + month - months;
+  const targetYear = Math.floor(target / 12);
+  const targetMonth = target - targetYear * 12;
+  const lastDay = new Date(
+    Date.UTC(targetYear, targetMonth + 1, 0),
+  ).getUTCDate();
+  return formatReportDate(
+    Date.UTC(targetYear, targetMonth, Math.min(day, lastDay)),
+  );
+}
+
+export function changePeriodRange(
+  reportDate: string,
+  previousReportDate: string | null,
+  period: ChangePeriod,
+): ChangePeriodRange {
+  const startExclusive =
+    period === 'today'
+      ? (previousReportDate ?? subtractDays(reportDate, 1))
+      : period === 'week'
+        ? subtractDays(reportDate, 7)
+        : subtractMonths(
+            reportDate,
+            period === 'month' ? 1 : period === 'quarter' ? 3 : 12,
+          );
+  return { startExclusive, endInclusive: reportDate };
+}
+
+/** 按持久化日更批次筛选，普通构建不会改变滚动窗口。 */
 export function filterChanges(
   changes: readonly ProposalChange[],
-  checkedAt: string,
-  period: ChangePeriod,
+  range: ChangePeriodRange,
 ): ProposalChange[] {
-  const reference = new Date(checkedAt);
-  const start = periodStart(reference, period);
-  const end = reference.getTime();
-  return changes.filter((change) => {
-    const time = Date.parse(change.detectedAt);
-    return time >= start && time <= end;
-  });
+  return changes.filter(
+    (change) =>
+      change.reportDate > range.startExclusive &&
+      change.reportDate <= range.endInclusive,
+  );
 }

@@ -1,18 +1,30 @@
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 
 import {
   DATASET_SCHEMA_VERSION,
   atlasDatasetSchema,
   parseAtlasDataset,
   parseDatasetManifest,
+  reportDateSchema,
   type AtlasDataset,
   type AtlasProposal,
   type DatasetManifest,
   type SyncedProposal,
   type TranslationCacheEntry,
 } from './model.js';
+import {
+  DATASET_FILE_NAME,
+  MANIFEST_FILE_NAME,
+  createDatasetManifest,
+} from './dataset-manifest.js';
+import {
+  INITIAL_GENERATED_AT,
+  emptyDataset,
+  writeAtomically,
+} from './dataset-support.js';
+import { reportDateAt } from './report-date.js';
 import { fetchTc39Proposals } from './source.js';
 import { detectProposalChanges, mergeProposalChanges } from './sync.js';
 import {
@@ -21,13 +33,17 @@ import {
   translationContentHash,
 } from './translation.js';
 
-export const DATASET_FILE_NAME = 'dataset.json';
-export const MANIFEST_FILE_NAME = 'manifest.json';
-const INITIAL_GENERATED_AT = new Date(0).toISOString();
+export {
+  DATASET_FILE_NAME,
+  MANIFEST_FILE_NAME,
+  createDatasetManifest,
+} from './dataset-manifest.js';
+export { REPORT_TIME_ZONE, reportDateAt } from './report-date.js';
 
 export interface PrepareDatasetOptions {
   outputDirectory: string;
   previousUrl?: string;
+  reportDate?: string;
 }
 
 export interface PrepareDatasetResult {
@@ -40,16 +56,6 @@ export interface WriteAtlasDatasetResult {
   dataset: AtlasDataset;
   manifest: DatasetManifest;
   serialized: string;
-}
-
-function emptyDataset(): AtlasDataset {
-  return {
-    schemaVersion: DATASET_SCHEMA_VERSION,
-    generatedAt: INITIAL_GENERATED_AT,
-    checkedAt: INITIAL_GENERATED_AT,
-    proposals: [],
-    changes: [],
-  };
 }
 
 /** 识别旧版首次同步产生的全量 added 事件，下次同步时自动回到基线。 */
@@ -118,6 +124,7 @@ export function buildAtlasDataset(
   previous: AtlasDataset,
   proposals: AtlasProposal[],
   generatedAt = new Date(),
+  reportDate = reportDateAt(generatedAt),
 ): AtlasDataset {
   const synced: SyncedProposal[] = proposals.map((proposal) => ({
     id: proposal.id,
@@ -131,15 +138,26 @@ export function buildAtlasDataset(
     syncedAt: proposal.syncedAt,
   }));
   const isInitial = previous.generatedAt === INITIAL_GENERATED_AT;
+  const parsedReportDate = reportDateSchema.parse(reportDate);
+  if (!isInitial && parsedReportDate < previous.reportDate) {
+    throw new Error('Report date cannot move backwards');
+  }
+  const previousReportDate = isInitial
+    ? null
+    : parsedReportDate === previous.reportDate
+      ? previous.previousReportDate
+      : previous.reportDate;
   const currentChanges = isInitial
     ? []
-    : detectProposalChanges(previous.proposals, synced);
+    : detectProposalChanges(previous.proposals, synced, parsedReportDate);
   const previousChanges =
     isInitial || isUnanchoredSnapshot(previous) ? [] : previous.changes;
   return {
     schemaVersion: DATASET_SCHEMA_VERSION,
     generatedAt: generatedAt.toISOString(),
     checkedAt: generatedAt.toISOString(),
+    reportDate: parsedReportDate,
+    previousReportDate,
     proposals,
     changes: mergeProposalChanges(previousChanges, currentChanges, generatedAt),
   };
@@ -184,6 +202,8 @@ export function serializeDataset(dataset: AtlasDataset): string {
     schemaVersion: DATASET_SCHEMA_VERSION,
     generatedAt: dataset.generatedAt,
     checkedAt: dataset.checkedAt,
+    reportDate: dataset.reportDate,
+    previousReportDate: dataset.previousReportDate,
     proposals,
     translations,
     changes: dataset.changes,
@@ -226,24 +246,6 @@ export function datasetSemanticRevision(dataset: AtlasDataset): string {
   return createHash('sha256').update(JSON.stringify(semantic)).digest('hex');
 }
 
-export function createDatasetManifest(
-  dataset: AtlasDataset,
-  serialized: string,
-): DatasetManifest {
-  const sha256 = createHash('sha256').update(serialized).digest('hex');
-  return {
-    schemaVersion: DATASET_SCHEMA_VERSION,
-    revision: sha256,
-    generatedAt: dataset.generatedAt,
-    checkedAt: dataset.checkedAt,
-    dataset: {
-      url: DATASET_FILE_NAME,
-      sha256,
-      bytes: Buffer.byteLength(serialized),
-    },
-  };
-}
-
 async function readLocalDataset(path: string): Promise<AtlasDataset | null> {
   try {
     return parseAtlasDataset(
@@ -277,6 +279,7 @@ async function readPublishedDataset(
       manifest.revision !== expected.revision ||
       manifest.generatedAt !== expected.generatedAt ||
       manifest.checkedAt !== expected.checkedAt ||
+      manifest.reportDate !== expected.reportDate ||
       manifest.dataset.sha256 !== expected.dataset.sha256 ||
       manifest.dataset.bytes !== expected.dataset.bytes
     ) {
@@ -326,13 +329,6 @@ export function selectPreviousDataset(
   return remote.checkedAt >= local.checkedAt ? remote : local;
 }
 
-async function writeAtomically(path: string, contents: string): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  const temporaryPath = `${path}.${process.pid}.tmp`;
-  await writeFile(temporaryPath, contents, 'utf8');
-  await rename(temporaryPath, path);
-}
-
 /** 获取最新英文内容并合并缓存，但不调用模型或修改正式数据集。 */
 export async function prepareAtlasDataset(
   options: PrepareDatasetOptions,
@@ -345,9 +341,15 @@ export async function prepareAtlasDataset(
   const previous = selectPreviousDataset(remote, local) ?? emptyDataset();
   const incoming = await fetchTc39Proposals();
   const proposals = mergePublishedProposals(previous.proposals, incoming);
+  const generatedAt = new Date();
   return {
     previous,
-    dataset: buildAtlasDataset(previous, proposals),
+    dataset: buildAtlasDataset(
+      previous,
+      proposals,
+      generatedAt,
+      options.reportDate ?? reportDateAt(generatedAt),
+    ),
   };
 }
 
@@ -378,7 +380,12 @@ export async function writeAtlasDatasetIfChanged(
       datasetSemanticRevision(dataset);
   const next = semanticChanged
     ? dataset
-    : { ...published.dataset, checkedAt: dataset.checkedAt };
+    : {
+        ...published.dataset,
+        checkedAt: dataset.checkedAt,
+        reportDate: dataset.reportDate,
+        previousReportDate: dataset.previousReportDate,
+      };
   const serialized = serializeDataset(next);
   if (published?.serialized === serialized) {
     return { ...published, changed: false };

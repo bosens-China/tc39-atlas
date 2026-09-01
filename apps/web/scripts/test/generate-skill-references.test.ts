@@ -52,6 +52,8 @@ function dataset(proposals: AtlasProposal[]): AtlasDataset {
     schemaVersion: DATASET_SCHEMA_VERSION,
     generatedAt: '2026-08-08T00:00:00.000Z',
     checkedAt: '2026-08-08T00:00:00.000Z',
+    reportDate: '2026-08-08',
+    previousReportDate: '2026-08-07',
     proposals,
     changes: [],
   };

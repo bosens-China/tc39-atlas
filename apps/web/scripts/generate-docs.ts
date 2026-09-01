@@ -23,6 +23,7 @@ import {
 } from '../src/proposalRoute.js';
 import {
   CHANGE_PERIODS,
+  changePeriodRange,
   changePeriodLabel,
   filterChanges,
   type ChangePeriod,
@@ -30,6 +31,7 @@ import {
 import {
   copy,
   formatDateTime,
+  formatReportDate,
   LANGUAGES,
   localizedTitle,
   markdownText,
@@ -113,12 +115,17 @@ function changesIndex(
 ): string {
   const value = copy[language];
   const title = changePeriodLabel(period, language);
-  const rows = filterChanges(dataset.changes, dataset.checkedAt, period)
+  const range = changePeriodRange(
+    dataset.reportDate,
+    dataset.previousReportDate,
+    period,
+  );
+  const rows = filterChanges(dataset.changes, range)
     .sort((left, right) => right.detectedAt.localeCompare(left.detectedAt))
     .map((change) => {
       const title = markdownText(change.after.title);
       const path = proposalRoutePath(change.proposalId, language);
-      return `| ${formatDateTime(change.detectedAt, language)} | ${changeLabel(change, language)} | [${title}](${path}) |`;
+      return `| ${formatDateTime(change.detectedAt, language, 'Asia/Shanghai')} | ${changeLabel(change, language)} | [${title}](${path}) |`;
     });
   const content = rows.length
     ? [
@@ -134,11 +141,23 @@ function changesIndex(
     '',
     `# ${title}`,
     '',
-    `:::info\n${language === 'zh' ? `数据检查于 ${formatDateTime(dataset.checkedAt, language)} UTC，变化按本站首次检测时间归入 UTC 自然周期。` : `Data checked at ${formatDateTime(dataset.checkedAt, language)} UTC; changes are grouped into UTC calendar periods by when this site first detected them.`}\n:::`,
+    `:::info\n${language === 'zh' ? `统计范围：${formatReportDate(range.startExclusive, language)}之后至 ${formatReportDate(range.endInclusive, language)}（含），变化按北京时间日更批次归入；实际检查于 ${formatDateTime(dataset.checkedAt, language, 'Asia/Shanghai')}（Asia/Shanghai）。` : `Reporting range: after ${formatReportDate(range.startExclusive, language)} through ${formatReportDate(range.endInclusive, language)} (inclusive), grouped by Asia/Shanghai daily update; data actually checked at ${formatDateTime(dataset.checkedAt, language, 'Asia/Shanghai')} (Asia/Shanghai).`}\n:::`,
     '',
     content,
     '',
   ].join('\n');
+}
+
+function changesSidebar(language: Language): string {
+  return `${JSON.stringify(
+    CHANGE_PERIODS.map((period) => ({
+      type: 'file',
+      name: period,
+      label: changePeriodLabel(period, language),
+    })),
+    null,
+    2,
+  )}\n`;
 }
 
 async function cleanGeneratedMarkdown(
@@ -195,6 +214,7 @@ export async function generateProposalDocs(
         join(changesDirectory, 'index.md'),
         changesIndex(dataset, language, 'week'),
       ),
+      writeFile(join(changesDirectory, '_meta.json'), changesSidebar(language)),
       ...CHANGE_PERIODS.map((period) =>
         writeFile(
           join(changesDirectory, `${period}.md`),

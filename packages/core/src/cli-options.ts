@@ -23,6 +23,7 @@ export function translationWorkflowOptions(): TranslationWorkflowOptions {
       process.env.SYNC_WORK_DIR ?? '.cache/tc39-atlas',
     ),
     env: process.env,
+    ...(process.env.REPORT_DATE ? { reportDate: process.env.REPORT_DATE } : {}),
     ...(process.env.PREVIOUS_DATASET_URL
       ? { previousUrl: process.env.PREVIOUS_DATASET_URL }
       : {}),

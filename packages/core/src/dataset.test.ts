@@ -11,6 +11,7 @@ import {
   createDatasetManifest,
   datasetSemanticRevision,
   mergePublishedProposals,
+  reportDateAt,
   selectPreviousDataset,
   serializeDataset,
   writeAtlasDatasetIfChanged,
@@ -55,6 +56,8 @@ const empty: AtlasDataset = {
   schemaVersion: DATASET_SCHEMA_VERSION,
   generatedAt: new Date(0).toISOString(),
   checkedAt: new Date(0).toISOString(),
+  reportDate: '1970-01-01',
+  previousReportDate: null,
   proposals: [],
   changes: [],
 };
@@ -180,6 +183,8 @@ describe('published dataset', () => {
         schemaVersion: DATASET_SCHEMA_VERSION - 1,
         generatedAt: empty.generatedAt,
         checkedAt: empty.checkedAt,
+        reportDate: empty.reportDate,
+        previousReportDate: empty.previousReportDate,
         proposals: [],
         translations: {},
         changes: [],
@@ -240,6 +245,7 @@ describe('published dataset', () => {
       empty,
       [translated],
       new Date('2026-08-08T00:00:00.000Z'),
+      '2026-08-08',
     );
     const serialized = serializeDataset(dataset);
     const manifest = createDatasetManifest(dataset, serialized);
@@ -269,6 +275,7 @@ describe('published dataset', () => {
       dataset,
       [translated, nextProposal],
       new Date('2026-08-09T00:00:00.000Z'),
+      '2026-08-09',
     );
     expect(next.changes).toMatchObject([
       { proposalId: 'proposal-b', kind: 'added' },
@@ -278,12 +285,13 @@ describe('published dataset', () => {
       ...dataset,
       generatedAt: '2026-08-08T00:00:00.000Z',
       checkedAt: '2026-08-08T00:00:00.000Z',
-      changes: detectProposalChanges([], [translated]),
+      changes: detectProposalChanges([], [translated], '2026-08-08'),
     };
     const anchored = buildAtlasDataset(
       legacyInitial,
       [translated],
       new Date('2026-08-09T00:00:00.000Z'),
+      '2026-08-09',
     );
     expect(anchored.changes).toEqual([]);
   });
@@ -325,8 +333,35 @@ describe('published dataset', () => {
     expect(
       datasetSemanticRevision({
         ...observedLater,
-        changes: detectProposalChanges([], [translated]),
+        changes: detectProposalChanges([], [translated], '2026-08-09'),
       }),
     ).not.toBe(datasetSemanticRevision(first));
+  });
+
+  it('derives a stable Asia/Shanghai report date and rejects regression', () => {
+    expect(reportDateAt(new Date('2026-08-31T23:39:51.764Z'))).toBe(
+      '2026-09-01',
+    );
+    const first = buildAtlasDataset(
+      empty,
+      [translated],
+      new Date('2026-08-31T23:39:51.764Z'),
+      '2026-09-01',
+    );
+    const sameDay = buildAtlasDataset(
+      first,
+      [translated],
+      new Date('2026-09-01T01:00:00.000Z'),
+      '2026-09-01',
+    );
+    expect(sameDay.previousReportDate).toBeNull();
+    expect(() =>
+      buildAtlasDataset(
+        sameDay,
+        [translated],
+        new Date('2026-09-01T02:00:00.000Z'),
+        '2026-08-31',
+      ),
+    ).toThrow('cannot move backwards');
   });
 });

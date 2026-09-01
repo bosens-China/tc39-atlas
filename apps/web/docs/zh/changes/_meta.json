@@ -1,7 +1,27 @@
 [
-  { "type": "file", "name": "today", "label": "今日变化" },
-  { "type": "file", "name": "week", "label": "本周变化" },
-  { "type": "file", "name": "month", "label": "本月变化" },
-  { "type": "file", "name": "quarter", "label": "本季度变化" },
-  { "type": "file", "name": "year", "label": "本年变化" }
+  {
+    "type": "file",
+    "name": "today",
+    "label": "本次日更"
+  },
+  {
+    "type": "file",
+    "name": "week",
+    "label": "近 7 日变化"
+  },
+  {
+    "type": "file",
+    "name": "month",
+    "label": "近 1 个月变化"
+  },
+  {
+    "type": "file",
+    "name": "quarter",
+    "label": "近 3 个月变化"
+  },
+  {
+    "type": "file",
+    "name": "year",
+    "label": "近 1 年变化"
+  }
 ]

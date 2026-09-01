@@ -39,6 +39,7 @@ describe('proposal synchronization', () => {
         synced({ stage: 4, status: 'finished' }),
         synced({ id: 'proposal-b', title: 'Proposal B' }),
       ],
+      '2026-08-08',
     );
     expect(changes.map((item) => item.kind)).toEqual([
       'stage_changed',
@@ -49,7 +50,7 @@ describe('proposal synchronization', () => {
   });
 
   it('retains one year of changes and deduplicates events', () => {
-    const current = detectProposalChanges([], [synced()]);
+    const current = detectProposalChanges([], [synced()], '2026-08-08');
     const retained = current.map((item) => ({
       ...item,
       id: 'retained',
