@@ -6,6 +6,8 @@ import { bundledLanguagesInfo } from 'shiki';
 import { unified } from 'unified';
 import { visit } from 'unist-util-visit';
 
+import { normalizeHtmlUrls, repositoryFileUrl } from './readme-urls.js';
+
 import {
   proposalRoutePath,
   type ProposalRouteContext,
@@ -38,28 +40,6 @@ const NEXT_HEADING_DEPTH = {
   6: 6,
 } as const;
 
-function isRelativeUrl(url: string): boolean {
-  return !/^(?:[a-z][a-z\d+.-]*:|\/\/|#)/i.test(url);
-}
-
-function repositoryFileUrl(
-  repositoryUrl: string,
-  value: string,
-  kind: 'blob' | 'raw',
-): string {
-  if (value.startsWith('//')) return `https:${value}`;
-  if (!isRelativeUrl(value)) return value;
-  const repository = repositoryUrl.replace(/\/$/, '');
-  if (!repository.startsWith('https://github.com/')) return value;
-
-  const suffixIndex = value.search(/[?#]/);
-  const path = (suffixIndex === -1 ? value : value.slice(0, suffixIndex))
-    .replace(/^\.\//, '')
-    .replace(/^\/+/, '');
-  const suffix = suffixIndex === -1 ? '' : value.slice(suffixIndex);
-  return path ? `${repository}/${kind}/HEAD/${path}${suffix}` : value;
-}
-
 /** 使用 Markdown AST 规范化链接，避免生成页把仓库相对路径指向 Pages。 */
 export function normalizeReadme(
   markdown: string,
@@ -85,6 +65,9 @@ export function normalizeReadme(
   });
   visit(tree, 'image', (node) => {
     node.url = repositoryFileUrl(repositoryUrl, node.url, 'raw');
+  });
+  visit(tree, 'html', (node) => {
+    node.value = normalizeHtmlUrls(node.value, repositoryUrl);
   });
   visit(tree, 'definition', (node) => {
     node.url = repositoryFileUrl(
