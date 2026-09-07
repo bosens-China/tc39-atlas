@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import type { AtlasProposal, SyncedProposal } from './model.js';
+import {
+  proposalChangeSchema,
+  type AtlasProposal,
+  type SyncedProposal,
+} from './model.js';
 import { detectProposalChanges, mergeProposalChanges } from './sync.js';
 
 const syncedAt = '2026-08-08T00:00:00.000Z';
@@ -32,6 +36,27 @@ function published(overrides: Partial<AtlasProposal> = {}): AtlasProposal {
 }
 
 describe('proposal synchronization', () => {
+  it.each(['inactive', 'withdrawn', 'finished'] as const)(
+    'records reactivation from %s without a stage change',
+    (status) => {
+      const changes = detectProposalChanges(
+        [published({ status })],
+        [synced()],
+        '2026-08-08',
+      );
+      expect(changes).toHaveLength(1);
+      expect(proposalChangeSchema.parse(changes[0])).toMatchObject({
+        kind: 'reactivated',
+        before: { status, stage: 2 },
+        after: { status: 'active', stage: 2 },
+        reportDate: '2026-08-08',
+      });
+      expect(
+        detectProposalChanges([published()], [synced()], '2026-08-08'),
+      ).toEqual([]);
+    },
+  );
+
   it('records added, stage, and terminal status changes', () => {
     const changes = detectProposalChanges(
       [published()],

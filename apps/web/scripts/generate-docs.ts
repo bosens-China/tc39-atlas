@@ -99,6 +99,7 @@ function changeLabel(change: ProposalChange, language: Language): string {
   const labels: Record<ProposalChange['kind'], readonly [string, string]> = {
     added: ['新增', 'Added'],
     stage_changed: ['阶段变化', 'Stage changed'],
+    reactivated: ['恢复活跃', 'Reactivated'],
     finished: ['完成', 'Finished'],
     inactive: ['转为不活跃', 'Became inactive'],
     withdrawn: ['撤回', 'Withdrawn'],

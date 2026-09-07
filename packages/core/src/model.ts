@@ -18,6 +18,7 @@ export const proposalStatuses = [
 export const proposalChangeKinds = [
   'added',
   'stage_changed',
+  'reactivated',
   'finished',
   'inactive',
   'withdrawn',

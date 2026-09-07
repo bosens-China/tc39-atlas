@@ -51,9 +51,14 @@ export function detectProposalChanges(
         change(proposal, 'stage_changed', beforeSnapshot, reportDate),
       );
     }
-    if (before.status !== proposal.status && proposal.status !== 'active') {
+    if (before.status !== proposal.status) {
       changes.push(
-        change(proposal, proposal.status, beforeSnapshot, reportDate),
+        change(
+          proposal,
+          proposal.status === 'active' ? 'reactivated' : proposal.status,
+          beforeSnapshot,
+          reportDate,
+        ),
       );
     }
   }

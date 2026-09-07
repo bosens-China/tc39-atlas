@@ -77,6 +77,31 @@ function sampleDataset(): AtlasDataset {
 }
 
 describe('proposal documentation generator', () => {
+  it('includes reactivation events in bilingual daily and weekly pages', async () => {
+    const dataset = sampleDataset();
+    const event = dataset.changes[0];
+    if (!event?.before) throw new Error('Expected event fixture');
+    dataset.changes = [
+      {
+        ...event,
+        kind: 'reactivated',
+        before: { ...event.before, stage: 2.7, status: 'inactive' },
+      },
+    ];
+    const docsRoot = await mkdtemp(join(tmpdir(), 'tc39-reactivation-'));
+    temporaryDirectories.push(docsRoot);
+    await generateProposalDocs(dataset, docsRoot);
+    for (const language of ['zh', 'en']) {
+      for (const period of ['today', 'week']) {
+        const page = await readFile(
+          join(docsRoot, language, 'changes', `${period}.md`),
+          'utf8',
+        );
+        expect(page).toContain('/proposals/proposal-example.html');
+      }
+    }
+  });
+
   it('rewrites repository-relative links without touching external links', () => {
     const result = normalizeReadme(
       '[Spec](./spec.html) [Issue](//github.com/tc39/proposal-example/issues/1) [TC39](https://tc39.es) ![Diagram](images/a.png)',
