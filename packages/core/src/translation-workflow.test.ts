@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { serializeDataset, writeAtlasDataset } from './dataset.js';
+import { publishedDatasetRevision } from './translation-publication.js';
 import {
   DATASET_SCHEMA_VERSION,
   parseAtlasDataset,
@@ -158,7 +159,7 @@ describe('two-phase translation workflow', () => {
       writeFile(
         join(workDirectory, AGENT_TRANSLATIONS_FILE),
         `${JSON.stringify({
-          schemaVersion: 1,
+          schemaVersion: 2,
           planRevision: plan.revision,
           model: 'local-agent',
           translations: [
@@ -236,7 +237,12 @@ describe('two-phase translation workflow', () => {
       previousReportDate: previous.reportDate,
     };
     const serialized = serializeDataset(snapshot);
-    const plan = createTranslationPlan(previous, snapshot, serialized);
+    const plan = createTranslationPlan(
+      previous,
+      snapshot,
+      serialized,
+      await publishedDatasetRevision(outputDirectory),
+    );
     await Promise.all([
       writeFile(
         join(workDirectory, TRANSLATION_SNAPSHOT_FILE),
@@ -289,7 +295,7 @@ describe('two-phase translation workflow', () => {
       writeFile(
         join(root, AGENT_TRANSLATIONS_FILE),
         JSON.stringify({
-          schemaVersion: 1,
+          schemaVersion: 2,
           planRevision: 'f'.repeat(64),
           model: 'local-agent',
           translations: [],

@@ -29,11 +29,15 @@ import {
   translationOutputSchema,
 } from './translation-provider.js';
 import { TRANSLATION_CONTRACT_VERSION } from './translation-cache-key.js';
+import {
+  publishedDatasetRevision,
+  verifyPublicationBaseline,
+} from './translation-publication.js';
 
 export const TRANSLATION_PLAN_FILE = 'translation-plan.json';
 export const TRANSLATION_SNAPSHOT_FILE = 'dataset-snapshot.json';
 export const AGENT_TRANSLATIONS_FILE = 'translation-results.json';
-const TRANSLATION_PLAN_SCHEMA_VERSION = 1;
+const TRANSLATION_PLAN_SCHEMA_VERSION = 2;
 
 const translationReasonSchema = z.enum([
   'new_proposal',
@@ -57,6 +61,10 @@ const translationPlanBodySchema = z.object({
   schemaVersion: z.literal(TRANSLATION_PLAN_SCHEMA_VERSION),
   generatedAt: z.string().datetime(),
   datasetRevision: z.string().regex(/^[a-f0-9]{64}$/),
+  baseRevision: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .nullable(),
   items: z.array(translationPlanItemSchema),
 });
 
@@ -126,6 +134,7 @@ export function createTranslationPlan(
   previous: AtlasDataset,
   dataset: AtlasDataset,
   serialized = serializeDataset(dataset),
+  baseRevision: string | null = null,
 ): TranslationPlan {
   const previousById = new Map(
     previous.proposals.map((proposal) => [proposal.id, proposal]),
@@ -134,6 +143,7 @@ export function createTranslationPlan(
     schemaVersion: TRANSLATION_PLAN_SCHEMA_VERSION,
     generatedAt: dataset.generatedAt,
     datasetRevision: sha256(serialized),
+    baseRevision,
     items: dataset.proposals.flatMap((proposal) => {
       const reasons = translationReasons(
         previousById.get(proposal.id),
@@ -272,12 +282,14 @@ function applyAgentTranslations(
 export async function scanTranslationWork(
   options: TranslationWorkflowOptions,
 ): Promise<ScanTranslationResult> {
+  const baseRevision = await publishedDatasetRevision(options.outputDirectory);
   const prepared = await prepareAtlasDataset(options);
   const serialized = serializeDataset(prepared.dataset);
   const plan = createTranslationPlan(
     prepared.previous,
     prepared.dataset,
     serialized,
+    baseRevision,
   );
   await writeAtomically(
     join(options.workDirectory, TRANSLATION_SNAPSHOT_FILE),
@@ -304,6 +316,7 @@ export async function executeTranslationWork(
     await readJson(join(options.workDirectory, TRANSLATION_PLAN_FILE)),
   );
   verifyTranslationPlan(plan, serialized, dataset);
+  await verifyPublicationBaseline(options.outputDirectory, plan.baseRevision);
   const agent = await readOptionalAgentTranslations(
     join(options.workDirectory, AGENT_TRANSLATIONS_FILE),
   );
@@ -313,6 +326,7 @@ export async function executeTranslationWork(
     options.env ?? process.env,
   );
   const published = { ...dataset, proposals: translated.proposals };
+  await verifyPublicationBaseline(options.outputDirectory, plan.baseRevision);
   const output = await writeAtlasDatasetIfChanged(
     published,
     options.outputDirectory,
