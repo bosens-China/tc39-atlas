@@ -1,9 +1,9 @@
 {
   "schemaVersion": 8,
   "generatedAt": "2026-10-16T22:37:28.644Z",
-  "checkedAt": "2026-10-20T22:58:19.746Z",
-  "reportDate": "2026-10-21",
-  "previousReportDate": "2026-10-20",
+  "checkedAt": "2026-10-21T23:03:06.855Z",
+  "reportDate": "2026-10-22",
+  "previousReportDate": "2026-10-21",
   "proposals": [
     {
       "id": "callable-class-constructors",
