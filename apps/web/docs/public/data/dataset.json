@@ -1,9 +1,9 @@
 {
   "schemaVersion": 8,
   "generatedAt": "2026-10-28T23:54:51.923Z",
-  "checkedAt": "2026-10-28T23:54:51.923Z",
-  "reportDate": "2026-10-29",
-  "previousReportDate": "2026-10-28",
+  "checkedAt": "2026-10-29T23:49:53.719Z",
+  "reportDate": "2026-10-30",
+  "previousReportDate": "2026-10-29",
   "proposals": [
     {
       "id": "proposal-await-dictionary",
