@@ -1,12 +1,12 @@
 {
   "schemaVersion": 8,
-  "revision": "1356c01c101ae5183549d3976ec78dda6165c4ba4f5a3d243c5f0dcbfc98830f",
-  "generatedAt": "2026-11-14T23:41:53.781Z",
-  "checkedAt": "2026-11-14T23:41:53.781Z",
-  "reportDate": "2026-11-15",
+  "revision": "b9bd9c860272e659147cd31e590f16ab44f50a66c0b44eea100219c713c5366f",
+  "generatedAt": "2026-11-15T23:48:54.356Z",
+  "checkedAt": "2026-11-15T23:48:54.356Z",
+  "reportDate": "2026-11-16",
   "dataset": {
     "url": "dataset.json",
-    "sha256": "1356c01c101ae5183549d3976ec78dda6165c4ba4f5a3d243c5f0dcbfc98830f",
+    "sha256": "b9bd9c860272e659147cd31e590f16ab44f50a66c0b44eea100219c713c5366f",
     "bytes": 6319189
   }
 }
