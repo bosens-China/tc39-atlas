@@ -61,6 +61,7 @@ export const overviewSchema = z.object({
 });
 
 export const atlasProposalSchema = proposalSummarySchema.extend({
+  sourceId: z.string().min(1).optional(),
   readme: z.string(),
   readmeHash: z.string().regex(/^[a-f0-9]{64}$/),
   readmeZh: z.string().nullable(),
@@ -80,6 +81,7 @@ export const translationCacheEntrySchema = z.object({
 });
 
 const storedAtlasProposalSchema = proposalSnapshotSchema.extend({
+  sourceId: z.string().min(1).optional(),
   syncedAt: z.string().datetime(),
   readme: z.string(),
   readmeHash: z.string().regex(/^[a-f0-9]{64}$/),
@@ -161,6 +163,7 @@ export interface ProposalFilter {
 }
 
 export interface SyncedProposal extends ProposalSnapshot {
+  sourceId?: string | undefined;
   readme: string;
   readmeHash: string;
   syncedAt: string;

@@ -77,6 +77,52 @@ function sampleDataset(): AtlasDataset {
 }
 
 describe('proposal documentation generator', () => {
+  it('retains historical events without generating missing detail links in either language', async () => {
+    const dataset = sampleDataset();
+    dataset.proposals = [];
+    const originalChanges = structuredClone(dataset.changes);
+    const docsRoot = await mkdtemp(join(tmpdir(), 'tc39-removed-'));
+    temporaryDirectories.push(docsRoot);
+    await generateProposalDocs(dataset, docsRoot);
+    for (const language of ['zh', 'en']) {
+      for (const period of [
+        'index',
+        'today',
+        'week',
+        'month',
+        'quarter',
+        'year',
+      ]) {
+        const page = await readFile(
+          join(docsRoot, language, 'changes', `${period}.md`),
+          'utf8',
+        );
+        expect(page).toContain(
+          '[Example Proposal](https://github.com/tc39/proposal-example)',
+        );
+        expect(page).not.toContain('/proposals/proposal-example.html');
+      }
+    }
+    expect(dataset.changes).toEqual(originalChanges);
+  });
+
+  it('renders unsafe historical source schemes as text instead of links', async () => {
+    const dataset = sampleDataset();
+    dataset.proposals = [];
+    const change = dataset.changes[0];
+    if (!change) throw new Error('Expected event fixture');
+    change.after.repositoryUrl = 'javascript:alert(1)';
+    const docsRoot = await mkdtemp(join(tmpdir(), 'tc39-source-'));
+    temporaryDirectories.push(docsRoot);
+    await generateProposalDocs(dataset, docsRoot);
+    const page = await readFile(
+      join(docsRoot, 'zh', 'changes', 'week.md'),
+      'utf8',
+    );
+    expect(page).toContain('| Example Proposal |');
+    expect(page).not.toContain('javascript:');
+  });
+
   it('includes reactivation events in bilingual daily and weekly pages', async () => {
     const dataset = sampleDataset();
     const event = dataset.changes[0];

@@ -121,12 +121,20 @@ function changesIndex(
     dataset.previousReportDate,
     period,
   );
+  const currentIds = new Set(dataset.proposals.map((proposal) => proposal.id));
   const rows = filterChanges(dataset.changes, range)
     .sort((left, right) => right.detectedAt.localeCompare(left.detectedAt))
     .map((change) => {
       const title = markdownText(change.after.title);
-      const path = proposalRoutePath(change.proposalId, language);
-      return `| ${formatDateTime(change.detectedAt, language, 'Asia/Shanghai')} | ${changeLabel(change, language)} | [${title}](${path}) |`;
+      // 历史快照并不保证仍有当前详情页；保留事件，回链当时的原始来源。
+      const source = new URL(change.after.repositoryUrl);
+      const path = currentIds.has(change.proposalId)
+        ? proposalRoutePath(change.proposalId, language)
+        : ['http:', 'https:'].includes(source.protocol)
+          ? source.href.replace(/\(/g, '%28').replace(/\)/g, '%29')
+          : null;
+      const target = path ? `[${title}](${path})` : title;
+      return `| ${formatDateTime(change.detectedAt, language, 'Asia/Shanghai')} | ${changeLabel(change, language)} | ${target} |`;
     });
   const content = rows.length
     ? [

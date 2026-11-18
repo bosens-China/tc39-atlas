@@ -25,6 +25,7 @@ import {
   writeAtomically,
 } from './dataset-support.js';
 import { reportDateAt } from './report-date.js';
+import { reconcileProposalIds } from './proposal-identity.js';
 import { fetchTc39Proposals } from './source.js';
 import { detectProposalChanges, mergeProposalChanges } from './sync.js';
 import {
@@ -114,7 +115,7 @@ export function mergePublishedProposals(
   const previousById = new Map(
     previous.map((proposal) => [proposal.id, proposal]),
   );
-  return incoming.map((proposal) => ({
+  return reconcileProposalIds(previous, incoming).map((proposal) => ({
     ...proposal,
     ...reuseTranslation(proposal, previousById.get(proposal.id)),
   }));
@@ -217,6 +218,7 @@ export function datasetSemanticRevision(dataset: AtlasDataset): string {
     schemaVersion: dataset.schemaVersion,
     proposals: dataset.proposals.map((proposal) => ({
       id: proposal.id,
+      sourceId: proposal.sourceId,
       title: proposal.title,
       titleZh: proposal.titleZh,
       stage: proposal.stage,
